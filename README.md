@@ -7,7 +7,9 @@ Uses CASA libraries either via casautil (from pwkit) or casapy session. Default 
 
 Requirements:
 -- Python 2.5 or higher
+
 -- pwkit 0.3.0 (casautil for casapy-free CASA in python) or CASA
+
 -- numpy
 
 Example syntax (gets scan info, bdf data, and uvw for one first integration:
