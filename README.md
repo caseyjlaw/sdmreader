@@ -17,8 +17,8 @@ Example syntax (gets scan info, bdf data, and uvw for one first integration:
 > (u, v, w) = sdmreader.calc_uvw(sdmfile, scan)
 
 Contributors:
-Casey Law, @caseyjlaw
-Peter Williams, @pkgw
-Adam Deller
-Steve Myers
-Todd Hunter
+* Casey Law, @caseyjlaw
+* Peter Williams, @pkgw
+* Adam Deller
+* Steve Myers
+* Todd Hunter
