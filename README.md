@@ -12,8 +12,11 @@ Requirements:
 
 Example syntax (gets scan info, bdf data, and uvw for one first integration:
 > import sdmreader
+
 > (scandict, sourcedict) = sdmreader.get_metadata(sdmfile)
+
 > data = sdmreader.read_bdf(sdmfile, scan)
+
 > (u, v, w) = sdmreader.calc_uvw(sdmfile, scan)
 
 Contributors:
