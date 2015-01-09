@@ -212,7 +212,11 @@ def read_metadata(sdmfile):
     for rownode in rowlist:
         rowfid = rownode.getElementsByTagName("scanNumber")
         fid = int(rowfid[0].childNodes[0].nodeValue)
-        bdfnum = int(rownode.getElementsByTagName('EntityRef')[0].attributes.items()[0][1].split('/')[-1])
+        bdfnumstr = rownode.getElementsByTagName('EntityRef')[0].getAttribute('entityId').split('/')[-1]
+        try:
+            bdfnum = int(bdfnumstr)   # bad scans (killed) seem to have bdfnumstr='X1'
+        except ValueError:
+            bdfnum = 0
         scandict[fid]['bdfnum'] = bdfnum
 
     # read Source.xml into dictionary also and make a list
