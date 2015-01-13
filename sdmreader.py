@@ -5,10 +5,10 @@
 
 Functions:
 
-read_bdf -- reads data from binary data format and returns numpy array
-calc_uvw -- parses metadata to calculate uvw coordinates for given scan (or time/direction). returns (u,v,w) tuple.
-read_metadata -- parses metadata of SDM file (xml format) to return tuple with two dictionaries (scaninfo, sourceinfo).
-call_qatime -- helper function for calculating times.
+read_bdf -- reads data from binary data format and returns numpy array.
+calc_uvw -- parses metadata to calculate uvw coordinates for given scan (or time/direction). returns (u,v,w) tuple. Requires CASA libraries.
+read_metadata -- parses metadata of SDM file (xml format) to return tuple with two dictionaries (scaninfo, sourceinfo). 
+call_qatime -- helper function for calculating times. Requires CASA libraries.
 
 BDFData class does the heavy lifting to parse binary data format and return numpy array. Does not yet parse flag table.
 
@@ -16,16 +16,26 @@ Note: baseline order used in the bdf is a bit unusual and different from what is
 Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in range(nants) for i in range(j)], so [ (1,2), (1,3), (2,3), (1,4), ...].
 """
 
-import casautil
+# set up CASA tools
+try:
+    # try casapy-free casa
+    import casautil
+    me = casautil.tools.measures()
+    qa = casautil.tools.quanta()
+    print 'Accessing CASA libraries with casautil.'
+except ImportError:
+    try:
+        from casa import quanta as qa
+        from casa import measures as me
+        print 'Accessing CASA libraries with casapy.'
+    except ImportError:
+        print 'No CASA library access. '
+
 import numpy as np
 import os, glob, mmap
 import xml.etree.ElementTree as et
 from email.feedparser import FeedParser
 from email.message import Message
-
-# set up CASA tools
-me = casautil.tools.measures()
-qa = casautil.tools.quanta()
 
 
 def read_bdf(sdmpath, scan, nskip=0, readints=0):
@@ -176,13 +186,20 @@ def read_metadata(sdmfile):
         rowstart = rownode.getElementsByTagName("startTime")
         start = int(rowstart[0].childNodes[0].nodeValue)
         startmjd = float(start)*1.0E-9/86400.0
-        t = qa.quantity(startmjd,'d')
-        starttime = call_qatime(t,form="ymd",prec=8)
+        try:
+            t = qa.quantity(startmjd,'d')
+            starttime = call_qatime(t,form="ymd",prec=8)
+        except:
+            pass
         rowend = rownode.getElementsByTagName("endTime")
         end = int(rowend[0].childNodes[0].nodeValue)
         endmjd = float(end)*1.0E-9/86400.0
-        t = qa.quantity(endmjd,'d')
-        endtime = call_qatime(t,form="ymd",prec=8)
+        try:
+            t = qa.quantity(endmjd,'d')
+            endtime = call_qatime(t,form="ymd",prec=8)
+        except:
+            pass
+
         # source name
         rowsrc = rownode.getElementsByTagName("sourceName")
         if (len(rowsrc) < 1):
@@ -192,14 +209,23 @@ def read_metadata(sdmfile):
             # to find out what all is available,
 #            print rownode.getElementsByTagName("*")
             scandict[fid] = {}
-            scandict[fid]['start'] = starttime
+            try:
+                scandict[fid]['start'] = starttime
+            except:
+                pass
             scandict[fid]['startmjd'] = startmjd
-            scandict[fid]['end'] = endtime
+            try:
+                scandict[fid]['end'] = endtime
+            except:
+                pass
             scandict[fid]['endmjd'] = endmjd
 #            print "starttime = ", starttime
 #            print "endtime = ", endtime
-            timestr = starttime+'~'+endtime
-            scandict[fid]['timerange'] = timestr
+            try:
+                timestr = starttime+'~'+endtime
+                scandict[fid]['timerange'] = timestr
+            except:
+                pass
             scandict[fid]['source'] = src
             scandict[fid]['intent'] = rint
             scandict[fid]['nsubs'] = nsubs
