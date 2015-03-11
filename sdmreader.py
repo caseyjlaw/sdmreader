@@ -8,7 +8,6 @@ Functions:
 read_bdf -- reads data from binary data format and returns numpy array.
 calc_uvw -- parses metadata to calculate uvw coordinates for given scan (or time/direction). returns (u,v,w) tuple. Requires CASA libraries.
 read_metadata -- parses metadata of SDM file (xml format) to return tuple with two dictionaries (scaninfo, sourceinfo). 
-call_qatime -- helper function for calculating times. Requires CASA libraries.
 
 BDFData class does the heavy lifting to parse binary data format and return numpy array. Does not yet parse flag table.
 
@@ -16,7 +15,7 @@ Note: baseline order used in the bdf is a bit unusual and different from what is
 Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in range(nants) for i in range(j)], so [ (1,2), (1,3), (2,3), (1,4), ...].
 """
 
-# set up CASA tools
+# set up CASA tools (only needed for uvw calculation)
 try:
     # try casapy-free casa
     import casautil
@@ -29,7 +28,7 @@ except ImportError:
         from casa import measures as me
         print 'Accessing CASA libraries with casapy.'
     except ImportError:
-        print 'No CASA library access. '
+        print 'No CASA libraries available. Cannot run calc_uvw.'
 
 import numpy as np
 import os, glob, mmap
@@ -187,19 +186,9 @@ def read_metadata(sdmfile):
         rowstart = rownode.getElementsByTagName("startTime")
         start = int(rowstart[0].childNodes[0].nodeValue)
         startmjd = float(start)*1.0E-9/86400.0
-        try:
-            t = qa.quantity(startmjd,'d')
-            starttime = call_qatime(t,form="ymd",prec=8)
-        except:
-            pass
         rowend = rownode.getElementsByTagName("endTime")
         end = int(rowend[0].childNodes[0].nodeValue)
         endmjd = float(end)*1.0E-9/86400.0
-        try:
-            t = qa.quantity(endmjd,'d')
-            endtime = call_qatime(t,form="ymd",prec=8)
-        except:
-            pass
 
         # source name
         rowsrc = rownode.getElementsByTagName("sourceName")
@@ -210,23 +199,10 @@ def read_metadata(sdmfile):
             # to find out what all is available,
 #            print rownode.getElementsByTagName("*")
             scandict[fid] = {}
-            try:
-                scandict[fid]['start'] = starttime
-            except:
-                pass
             scandict[fid]['startmjd'] = startmjd
-            try:
-                scandict[fid]['end'] = endtime
-            except:
-                pass
             scandict[fid]['endmjd'] = endmjd
 #            print "starttime = ", starttime
 #            print "endtime = ", endtime
-            try:
-                timestr = starttime+'~'+endtime
-                scandict[fid]['timerange'] = timestr
-            except:
-                pass
             scandict[fid]['source'] = src
             scandict[fid]['intent'] = rint
             scandict[fid]['nsubs'] = nsubs
@@ -293,21 +269,6 @@ def read_metadata(sdmfile):
         
     # return the dictionary for later use
     return [scandict, sourcedict]
-
-
-def call_qatime(arg, form='', prec=0):
-    """
-    This is a wrapper for qa.time(), which in casa 4.0 returns a list of 
-    strings instead of just a scalar string.  In this case, return the first 
-    value in the list.
-    - Todd Hunter
-    """
-
-    result = qa.time(arg, form=form, prec=prec)
-    if (type(result) == list or type(result)==np.ndarray):
-        return(result[0])
-    else:
-        return(result)
 
 
 """
