@@ -46,6 +46,7 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
 
     assert os.path.exists(sdmpath)
     scans, sources = read_metadata(sdmpath)
+    assert scans[scan]['bdfnum']
     bdffile = glob.glob(sdmpath + '/ASDMBinary/*' + str(scans[scan]['bdfnum']))[0]
 
     fp = open(bdffile)
@@ -239,10 +240,10 @@ def read_metadata(sdmfile):
         rowfid = rownode.getElementsByTagName("scanNumber")
         fid = int(rowfid[0].childNodes[0].nodeValue)
         bdfnumstr = rownode.getElementsByTagName('EntityRef')[0].getAttribute('entityId').split('/')[-1]
-        try:
-            bdfnum = int(bdfnumstr)   # bad scans (killed) seem to have bdfnumstr='X1'
-        except ValueError:
-            bdfnum = 0
+        if bdfnumstr == 'X1':
+            bdfnum = None      # missing BDFs (bad or removed) have bdfnumstr='X1'
+        else:
+            bdfnum = int(bdfnumstr)
         scandict[fid]['bdfnum'] = bdfnum
 
     # read Source.xml into dictionary also and make a list
