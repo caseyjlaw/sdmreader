@@ -37,14 +37,14 @@ from email.feedparser import FeedParser
 from email.message import Message
 
 
-def read_bdf(sdmpath, scan, nskip=0, readints=0):
+def read_bdf(sdmpath, scan, nskip=0, readints=0, location='archive'):
     """ Reads given range of integrations from sdm of given scan.
     Uses BDFData object to read.
     readints=0 will read all of bdf (skipping nskip).
     """
 
     assert os.path.exists(sdmpath)
-    scans, sources = read_metadata(sdmpath)
+    scans, sources = read_metadata(sdmpath, location=location)
     assert scans[scan]['bdfstr']
     bdffiles = glob.glob(scans[scan]['bdfstr'])
     assert len(bdffiles) == 1
@@ -155,8 +155,7 @@ def read_metadata(sdmfile, location='archive'):
         print "Could not find the Scan.xml file.  Are you sure this is an SDM?"
         return([],[])
         
-    if location not in ['archive', 'cbe']:
-        print 'Not a recognized location. BDF locations will not be set.'
+    assert location in ['archive', 'cbe']
 
     try:
         from xml.dom import minidom
