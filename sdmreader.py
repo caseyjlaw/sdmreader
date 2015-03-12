@@ -45,8 +45,10 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
 
     assert os.path.exists(sdmpath)
     scans, sources = read_metadata(sdmpath)
-    assert scans[scan]['bdfnum']
-    bdffile = glob.glob(sdmpath + '/ASDMBinary/*' + str(scans[scan]['bdfnum']))[0]
+    assert scans[scan]['bdfstr']
+    bdffiles = glob.glob(scans[scan]['bdfstr'])
+    assert len(bdffiles) == 1
+    bdffile = bdffiles[0]
 
     fp = open(bdffile)
     bdf = BDFData(fp).parse()
@@ -137,7 +139,15 @@ def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
     return u, v, w
 
 
-def read_metadata(sdmfile):
+def read_metadata(sdmfile, location='archive'):
+    """ Parses XML files to get scan and source information.
+    Returns tuple of dicts (scan, source).
+    Location argument is to add string to scan dict to find BDFs with read_bdf. 
+    Options are "archive" (for most people) or "cbe" (very special case).
+    """
+
+    sdmfile = sdmfile.rstrip('/')
+
     if (os.path.exists(sdmfile) == False):
         print "Could not find the SDM file = ", sdmfile
         return([],[])
@@ -145,10 +155,13 @@ def read_metadata(sdmfile):
         print "Could not find the Scan.xml file.  Are you sure this is an SDM?"
         return([],[])
         
+    if location not in ['archive', 'cbe']:
+        print 'Not a recognized location. BDF locations will not be set.'
+
     try:
         from xml.dom import minidom
     except ImportError, e:
-        print "failed to load xml.dom.minidom:\n", e
+        print "Failed to load xml.dom.minidom:\n", e
         exit(1)
 
     # read Scan.xml into dictionary also and make a list
@@ -217,10 +230,14 @@ def read_metadata(sdmfile):
         fid = int(rowfid[0].childNodes[0].nodeValue)
         bdfnumstr = rownode.getElementsByTagName('EntityRef')[0].getAttribute('entityId').split('/')[-1]
         if bdfnumstr == 'X1':
-            bdfnum = None      # missing BDFs (bad or removed) have bdfnumstr='X1'
+            scandict[fid]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
         else:
-            bdfnum = int(bdfnumstr)
-        scandict[fid]['bdfnum'] = bdfnum
+            if location == 'archive':
+                scandict[fid]['bdfstr'] = sdmfile + '/ASDMBinary/*' + bdfnumstr
+            elif location == 'cbe':
+                scandict[fid]['bdfstr'] = '/lustre/evla/wcbe/data/bunker/*' + bdfnumstr
+            else:
+                scandict[fid]['bdfstr'] = None
 
     # read Source.xml into dictionary also and make a list
     xmlsources = minidom.parse(sdmfile+'/Source.xml')
