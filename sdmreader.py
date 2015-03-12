@@ -31,7 +31,7 @@ except ImportError:
         print 'No CASA libraries available. Cannot run calc_uvw.'
 
 import numpy as np
-import os, glob, mmap
+import os, glob, mmap, math
 import xml.etree.ElementTree as et
 from email.feedparser import FeedParser
 from email.message import Message
