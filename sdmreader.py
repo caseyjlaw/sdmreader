@@ -7,7 +7,7 @@ Functions:
 
 read_bdf -- reads data from binary data format and returns numpy array.
 calc_uvw -- parses metadata to calculate uvw coordinates for given scan (or time/direction). returns (u,v,w) tuple. Requires CASA libraries.
-read_metadata -- parses metadata of SDM file (xml format) to return tuple with two dictionaries (scaninfo, sourceinfo). 
+read_metadata -- parses metadata of SDM file (xml format) to return tuple with two dictionaries (scaninfo, sourceinfo). Scan info defines BDF location per scan.
 
 BDFData class does the heavy lifting to parse binary data format and return numpy array. Does not yet parse flag table.
 
@@ -37,18 +37,24 @@ from email.feedparser import FeedParser
 from email.message import Message
 
 
-def read_bdf(sdmpath, scan, nskip=0, readints=0, location='archive'):
+def read_bdf(sdmpath, scan, nskip=0, readints=0):
     """ Reads given range of integrations from sdm of given scan.
     Uses BDFData object to read.
     readints=0 will read all of bdf (skipping nskip).
     """
 
     assert os.path.exists(sdmpath)
-    scans, sources = read_metadata(sdmpath, location=location)
+    scans, sources = read_metadata(sdmpath)
     assert scans[scan]['bdfstr']
     bdffiles = glob.glob(scans[scan]['bdfstr'])
-    assert len(bdffiles) == 1
-    bdffile = bdffiles[0]
+    if len(bdffiles) == 1:
+        bdffile = bdffiles[0]
+    elif len(bdffiles) > 1:
+        print 'Too many bdfs found for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr'])
+        exit(1)
+    else:
+        print 'No bdfs found for scan %d and bdfstr %s. Does ASDMBinary directory exist?' % (scan, scans[scan]['bdfstr'])
+        exit(1)
 
     fp = open(bdffile)
     bdf = BDFData(fp).parse()
@@ -139,11 +145,10 @@ def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
     return u, v, w
 
 
-def read_metadata(sdmfile, location='archive'):
+def read_metadata(sdmfile):
     """ Parses XML files to get scan and source information.
     Returns tuple of dicts (scan, source).
-    Location argument is to add string to scan dict to find BDFs with read_bdf. 
-    Options are "archive" (for most people) or "cbe" (very special case).
+    bdfstr in scan dict helps find BDFs with read_bdf (with special behavior for prearchive data.
     """
 
     sdmfile = sdmfile.rstrip('/')
@@ -151,11 +156,15 @@ def read_metadata(sdmfile, location='archive'):
     if (os.path.exists(sdmfile) == False):
         print "Could not find the SDM file = ", sdmfile
         return([],[])
-    if (os.path.exists(sdmfile+'/Scan.xml') == False):
-        print "Could not find the Scan.xml file.  Are you sure this is an SDM?"
+    if (os.path.exists(sdmfile+'/Antenna.xml') == False):
+        print "Could not find the Antenna.xml file.  Are you sure this is an SDM?"
         return([],[])
-        
-    assert location in ['archive', 'cbe']
+
+    # if ASDMBinary directory exists, this is normal archive product. else assume we are on CBE.
+    if os.path.exists(sdmfile+'/ASDMBinary'):
+        location = 'archive'
+    else:
+        location = 'cbe'
 
     try:
         from xml.dom import minidom
@@ -235,8 +244,6 @@ def read_metadata(sdmfile, location='archive'):
                 scandict[fid]['bdfstr'] = sdmfile + '/ASDMBinary/*' + bdfnumstr
             elif location == 'cbe':
                 scandict[fid]['bdfstr'] = '/lustre/evla/wcbe/data/bunker/*' + bdfnumstr
-            else:
-                scandict[fid]['bdfstr'] = None
 
     # read Source.xml into dictionary also and make a list
     xmlsources = minidom.parse(sdmfile+'/Source.xml')
@@ -370,7 +377,6 @@ class BDFData (object):
                     len (feedparser._msgstack) == 3 and
                     feedparser._msgstack[-1].get_content_type () in ('application/octet-stream',
                                                                      'binary/octet-stream'))
-
             if skip:
                 # We just finished reading the headers for a huge binary blob.
                 # Time to remember where the data chunk is and pretend it doesn't
