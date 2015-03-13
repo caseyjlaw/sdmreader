@@ -15,6 +15,8 @@ Note: baseline order used in the bdf is a bit unusual and different from what is
 Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in range(nants) for i in range(j)], so [ (1,2), (1,3), (2,3), (1,4), ...].
 """
 
+__all__ = ['read_bdf', 'calc_uvw', 'read_metadata', 'BDFData']
+
 # set up CASA tools (only needed for uvw calculation)
 try:
     # try casapy-free casa
@@ -31,8 +33,7 @@ except ImportError:
         print 'No CASA libraries available. Cannot run calc_uvw.'
 
 import numpy as np
-import os, glob, mmap, math
-import xml.etree.ElementTree as et
+import os, glob, mmap, math, string, sdmpy
 from email.feedparser import FeedParser
 from email.message import Message
 
@@ -78,7 +79,7 @@ def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
     radec is (ra,dec) as tuple in units of degrees (format: (180., +45.))
     """
 
-    assert os.path.exists(sdmpath+'/Station.xml')
+    assert os.path.exists(os.path.join(sdmpath, 'Station.xml'))
 
     # get scan info
     scans, sources = read_metadata(sdmpath)
@@ -110,7 +111,7 @@ def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
         direction = me.direction('J2000', str(ra)+'deg', str(dec)+'deg')
 
     # define metadata "frame" for uvw calculation
-    root = et.parse(sdmpath + '/ExecBlock.xml').getroot()
+    root = et.parse(os.path.join(sdmpath, 'ExecBlock.xml')).getroot()
     telescopename = root.iter('row').next().find('telescopeName').text
 
     me.doframe(me.observatory(telescopename))
@@ -118,7 +119,7 @@ def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
     me.doframe(direction)
 
     # read antpos
-    root = et.parse(sdmpath + '/Station.xml').getroot()
+    root = et.parse(os.path.join(sdmpath, 'Station.xml')).getroot()
     positions = [rr.find('position').text.split(' ') for rr in root.iter('row') if 'ANTENNA' in rr.find('type').text]
     x = [float(positions[i][2]) for i in range(len(positions))]
     y = [float(positions[i][3]) for i in range(len(positions))]
@@ -156,141 +157,74 @@ def read_metadata(sdmfile):
     if (os.path.exists(sdmfile) == False):
         print "Could not find the SDM file = ", sdmfile
         return([],[])
-    if (os.path.exists(sdmfile+'/Antenna.xml') == False):
+    if (os.path.exists(os.path.join(sdmfile, 'Antenna.xml')) == False):
         print "Could not find the Antenna.xml file.  Are you sure this is an SDM?"
         return([],[])
 
     # if ASDMBinary directory exists, this is normal archive product. else assume we are on CBE.
-    if os.path.exists(sdmfile+'/ASDMBinary'):
+    if os.path.exists(os.path.join(sdmfile, 'ASDMBinary')):
         location = 'archive'
     else:
         location = 'cbe'
 
-    try:
-        from xml.dom import minidom
-    except ImportError, e:
-        print "Failed to load xml.dom.minidom:\n", e
-        exit(1)
+    sdm = sdmpy.SDM(sdmfile)
 
     # read Scan.xml into dictionary also and make a list
-    xmlscans = minidom.parse(sdmfile+'/Scan.xml')
     scandict = {}
-    rowlist = xmlscans.getElementsByTagName("row")
-    for rownode in rowlist:
-        rowfid = rownode.getElementsByTagName("scanNumber")
-        fid = int(rowfid[0].childNodes[0].nodeValue)
-        # number of subscans
-        try:
-            # ALMA
-            rowsubs = rownode.getElementsByTagName("numSubScan")
-            nsubs = int(rowsubs[0].childNodes[0].nodeValue)
-        except:
-            # EVLA
-            rowsubs = rownode.getElementsByTagName("numSubscan")
-            nsubs = int(rowsubs[0].childNodes[0].nodeValue)
-        # intents
-        rownint = rownode.getElementsByTagName("numIntent")
-        nint = int(rownint[0].childNodes[0].nodeValue)
-
-        rowintents = rownode.getElementsByTagName("scanIntent")
-        sint = str(rowintents[0].childNodes[0].nodeValue)
-        sints = sint.split()
-        rint = ''
-        for r in range(nint):
-            intent = sints[2+r]
-            if rint=='':
-                rint = intent
-            else:
-                rint += ' '+intent
-
-        # start and end times in mjd ns
-        rowstart = rownode.getElementsByTagName("startTime")
-        start = int(rowstart[0].childNodes[0].nodeValue)
-        startmjd = float(start)*1.0E-9/86400.0
-        rowend = rownode.getElementsByTagName("endTime")
-        end = int(rowend[0].childNodes[0].nodeValue)
-        endmjd = float(end)*1.0E-9/86400.0
-
-        # source name
-        rowsrc = rownode.getElementsByTagName("sourceName")
-        if (len(rowsrc) < 1):
+    for row in sdm['Scan']:
+        scannum = int(row['scanNumber'])
+        rowkey = [k for k in row.keys if k.lower() == 'numsubscan'][0]   # need to find key but caps rule changes between ALMA/VLA
+        nsubs = int(row[rowkey])
+        scanintents = row['scanIntent']
+        intentstr = string.join(scanintents.split(' ')[2:], ' ')
+        startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
+        endmjd = float(row['endTime'])*1.0E-9/86400.0
+        src = str(row["sourceName"])        # source name
+        if (len(src) < 1):
             print "Scan %d appears to be corrupt." % (len(scandict)+1)
         else:
-            src = str(rowsrc[0].childNodes[0].nodeValue)
-            # to find out what all is available,
-#            print rownode.getElementsByTagName("*")
-            scandict[fid] = {}
-            scandict[fid]['startmjd'] = startmjd
-            scandict[fid]['endmjd'] = endmjd
-#            print "starttime = ", starttime
-#            print "endtime = ", endtime
-            scandict[fid]['source'] = src
-            scandict[fid]['intent'] = rint
-            scandict[fid]['nsubs'] = nsubs
-            scandict[fid]['duration'] = endmjd-startmjd
-#    print '  Found ',rowlist.length,' scans in Scan.xml'
+            scandict[scannum] = {}
+            scandict[scannum]['startmjd'] = startmjd
+            scandict[scannum]['endmjd'] = endmjd
+            scandict[scannum]['source'] = src
+            scandict[scannum]['intent'] = intentstr
+            scandict[scannum]['nsubs'] = nsubs
+            scandict[scannum]['duration'] = endmjd-startmjd
 
-    xmlmain = minidom.parse(sdmfile+'/Main.xml')
-    # iteration option 1
-    rowlist = xmlmain.getElementsByTagName("row")
-    for rownode in rowlist:
-        rowfid = rownode.getElementsByTagName("scanNumber")
-        fid = int(rowfid[0].childNodes[0].nodeValue)
-        bdfnumstr = rownode.getElementsByTagName('EntityRef')[0].getAttribute('entityId').split('/')[-1]
-        if bdfnumstr == 'X1':
-            scandict[fid]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
+
+    for row in sdm['Main']:
+        scannum = int(row['scanNumber'])
+        bdfnumstr = row['dataUID'].split('/')[-1]
+        if bdfnumstr == 'X1':  
+            scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
         else:
-            if location == 'archive':
-                scandict[fid]['bdfstr'] = sdmfile + '/ASDMBinary/*' + bdfnumstr
-            elif location == 'cbe':
-                scandict[fid]['bdfstr'] = '/lustre/evla/wcbe/data/bunker/*' + bdfnumstr
+            if location == 'archive':   # most use cases
+                scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', '*' + str(bdfnumstr))
+            elif location == 'cbe':  # bdfs stored remotly on CBE
+                scandict[scannum]['bdfstr'] = os.path.join('/lustre/evla/wcbe/data/bunker', '*' + str(bdfnumstr))
 
-    # read Source.xml into dictionary also and make a list
-    xmlsources = minidom.parse(sdmfile+'/Source.xml')
     sourcedict = {}
     sourcelist = []
-    sourceId = []
-    rowlist = xmlsources.getElementsByTagName("row")
-    for rownode in rowlist:
-        rowfid = rownode.getElementsByTagName("sourceId")
-        fid = int(rowfid[0].childNodes[0].nodeValue)
-
-        # source name
-        rowsrc = rownode.getElementsByTagName("sourceName")
-        src = str(rowsrc[0].childNodes[0].nodeValue)
+    for row in sdm['Source']:
+        sourcenum = int(row["sourceId"])
+        src = str(row['sourceName'])
         try:
-            rowsrc = rownode.getElementsByTagName("directionCode")
-            directionCode = str(rowsrc[0].childNodes[0].nodeValue)
+            directioncode = str(row['directionCode'])
         except:
             directionCode = ''
-        rowsrc = rownode.getElementsByTagName("direction")
-        (ra,dec) = rowsrc[0].childNodes[0].nodeValue.split()[2:4]
-        ra = float(ra)
-        dec = float(dec)
+        direction = row["direction"]
+        (ra,dec) = [float(val) for val in direction.split(' ')[2:]]  # skip first two values in string
         if (src not in sourcelist):
             sourcelist.append(src)
-            sourceId.append(fid)
-            sourcedict[fid] = {}
-#            sourcedict[fid]['sourceName'] = src
-            sourcedict[fid]['source'] = src
-            sourcedict[fid]['directionCode'] = directionCode
-            sourcedict[fid]['ra'] = ra
-            sourcedict[fid]['dec'] = dec
-#            print "Loading source %s to index %d" % (src,fid)
+            sourcedict[sourcenum] = {}
+            sourcedict[sourcenum]['source'] = src
+            sourcedict[sourcenum]['directionCode'] = directionCode
+            sourcedict[sourcenum]['ra'] = ra
+            sourcedict[sourcenum]['dec'] = dec
         else:
-            ai = sourceId[sourcelist.index(src)]
-#            print "Source %s is already at index %d = ID:%d" % (src,sourcelist.index(src),ai)
-            if (ra != sourcedict[ai]['ra'] or dec != sourcedict[ai]['dec']):
-                print "WARNING: Multiple directions found for source %d = %s" % (fid,src)
-                ras = (ra - sourcedict[ai]['ra'])*180*3600*math.cos(dec)/math.pi
-                decs = (dec - sourcedict[ai]['dec'])*180*3600/math.pi
-                print "The difference is (%f,%f) arcseconds." % (ras,decs)
-#    for src in range(len(sourcedict)):
-#        print "%s direction = %f, %f" % (sourcedict[src]['sourceName'],
-#                                         sourcedict[src]['ra'],
-#                                         sourcedict[src]['dec'])
-        
-    # return the dictionary for later use
+            if (ra != sourcedict[sourcenum]['ra']) and (dec != sourcedict[sourcenum]['dec']):
+                print "WARNING: multiple entries with different coords for source %d (%s)" % (sourcenum,src)
+            
     return [scandict, sourcedict]
 
 
@@ -338,8 +272,6 @@ never happens.
 
 BDF is little-endian as are x86 processors, so we ignore endianness issues.
 """
-
-__all__ = ['BDFData']
 
 _datatypes = {
     'autoData.bin': np.complex64,
