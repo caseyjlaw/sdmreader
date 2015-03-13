@@ -9,6 +9,7 @@ Requirements:
 ---------
 * Python 2.5 or higher
 * numpy
+* sdmpy (github:demorest/sdmpy)
 * Optional (for uvw calculation): pwkit 0.3.0 (casapy-free CASA) or run in casapy
 
 Usage:
@@ -22,6 +23,7 @@ Example syntax (gets scan info, bdf data, and uvw for one first integration:
 Contributors:
 * Casey Law, @caseyjlaw
 * Peter Williams, @pkgw
+* Paul Demorest
 * Adam Deller
 * Steve Myers
 * Todd Hunter
