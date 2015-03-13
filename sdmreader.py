@@ -17,26 +17,11 @@ Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in 
 
 __all__ = ['read_bdf', 'calc_uvw', 'read_metadata', 'BDFData']
 
-# set up CASA tools (only needed for uvw calculation)
-try:
-    # try casapy-free casa
-    import casautil
-    me = casautil.tools.measures()
-    qa = casautil.tools.quanta()
-    print 'Accessing CASA libraries with casautil.'
-except ImportError:
-    try:
-        from casa import quanta as qa
-        from casa import measures as me
-        print 'Accessing CASA libraries with casapy.'
-    except ImportError:
-        print 'No CASA libraries available. Cannot run calc_uvw.'
-
 import numpy as np
 import os, glob, mmap, math, string, sdmpy
+import xml.etree.ElementTree as et    # sdmpy can do this part...
 from email.feedparser import FeedParser
 from email.message import Message
-
 
 def read_bdf(sdmpath, scan, nskip=0, readints=0):
     """ Reads given range of integrations from sdm of given scan.
@@ -79,6 +64,22 @@ def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
     radec is (ra,dec) as tuple in units of degrees (format: (180., +45.))
     """
 
+    # set up CASA tools
+    try:
+        # try casapy-free casa
+        import casautil
+        me = casautil.tools.measures()
+        qa = casautil.tools.quanta()
+        print 'Accessing CASA libraries with casautil.'
+    except ImportError:
+        try:
+            from casa import quanta as qa
+            from casa import measures as me
+            print 'Accessing CASA libraries with casapy.'
+        except ImportError:
+            print 'No CASA libraries available. Cannot run calc_uvw.'
+            exit(1)
+
     assert os.path.exists(os.path.join(sdmpath, 'Station.xml'))
 
     # get scan info
@@ -89,7 +90,7 @@ def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
         assert scan != 0   # default scan value not valid
 
         print 'Calculating uvw for first integration of scan %d of source %s' % (scan, scans[scan]['source'])
-        datetime = scans[scan]['start']
+        datetime = qa.time(qa.quantity(scans[scan]['startmjd'],'d'), form="ymd", prec=8)[0]
         sourcenum = [kk for kk in sources.keys() if sources[kk]['source'] == scans[scan]['source']][0]
         direction = me.direction('J2000', str(np.degrees(sources[sourcenum]['ra']))+'deg', str(np.degrees(sources[sourcenum]['dec']))+'deg')
 
