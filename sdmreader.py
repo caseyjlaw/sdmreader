@@ -195,7 +195,10 @@ def read_metadata(sdmfile):
 
     for row in sdm['Main']:
         scannum = int(row['scanNumber'])
-        bdfnumstr = row['dataUID'].split('/')[-1]
+        try:
+            bdfnumstr = row['dataUID'].split('/')[-1]
+        except KeyError:
+            bdfnumstr = row['dataOid'].split('/')[-1]
         if bdfnumstr == 'X1':  
             scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
         else:
