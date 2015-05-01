@@ -18,7 +18,7 @@ Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in 
 __all__ = ['read_bdf', 'calc_uvw', 'read_metadata', 'BDFData']
 
 import numpy as np
-import os, glob, mmap, math, string, sdmpy
+import os, glob, mmap, math, string, sdmpy, pickle
 import xml.etree.ElementTree as et    # sdmpy can do this part...
 from email.feedparser import FeedParser
 from email.message import Message
@@ -293,7 +293,23 @@ class BDFData (object):
         self.mmdata = mmap.mmap (fp.fileno (), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
 
 
-    def parse (self):
+    def parse(self):
+        """wrapper for original parse function. will read pkl with bdf info, if available."""
+
+        pklname = self.fp.name + '.pkl'
+        if os.path.exists(pklname):        # check for pkl with binary info
+            print 'Found bdf pkl file %s. Loading...' % (pklname)
+            try:
+                pkl = open(pklname,'rb')
+                (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols) = pickle.load(pkl)
+                pkl.close()
+            except:
+                print 'Something went wrong. Parsing bdf directly...'
+                self._parse()
+        else:
+            self._parse()
+
+    def _parse (self):
         """Parse the BDF mime structure and record the locations of the binary
         blobs. Sets up various data fields in the BDFData object."""
 
@@ -365,6 +381,16 @@ class BDFData (object):
         self.n_spws = nspw
         self.n_channels = nchan
         self.crosspols = crosspolstr.split ()
+
+        # if bdf info pkl not present, write it
+        pklname = self.fp.name + '.pkl'
+        if not os.path.exists(pklname):        
+            print 'Writing bdf pkl info to %s...' % (pklname)
+            pkl = open(pklname,'wb')
+            # Compute some miscellaneous parameters that we'll need.
+            pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
+            pkl.close()
+
         return self # convenience
 
 
