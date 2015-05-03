@@ -43,7 +43,10 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
         exit(1)
 
     fp = open(bdffile)
-    bdf = BDFData(fp).parse()
+    bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
+    if not os.path.exists(bdfpkldir):
+        os.makedirs(bdfpkldir)
+    bdf = BDFData(fp, pkldir=bdfpkldir).parse()
     if readints == 0:
         readints = bdf.n_integrations - nskip
 
@@ -153,6 +156,7 @@ def read_metadata(sdmfile):
     bdfstr in scan dict helps find BDFs with read_bdf (with special behavior for prearchive data.
     """
 
+    bdfdir = '/lustre/evla/wcbe/data/bunker'
     sdmfile = sdmfile.rstrip('/')
 
     if (os.path.exists(sdmfile) == False):
@@ -205,7 +209,7 @@ def read_metadata(sdmfile):
             if location == 'archive':   # most use cases
                 scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', '*' + str(bdfnumstr))
             elif location == 'cbe':  # bdfs stored remotly on CBE
-                scandict[scannum]['bdfstr'] = os.path.join('/lustre/evla/wcbe/data/bunker', '*' + str(bdfnumstr))
+                scandict[scannum]['bdfstr'] = os.path.join(bdfdir, '*' + str(bdfnumstr))
 
     sourcedict = {}
     sourcelist = []
@@ -287,20 +291,22 @@ nanttag = 'numAntenna'
 basebandtag = 'baseband'
 
 class BDFData (object):
-    def __init__ (self, fp):
+    def __init__ (self, fp, pkldir=''):
         """fp is an open, seekable filestream."""
         self.fp = fp
         self.mmdata = mmap.mmap (fp.fileno (), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-
+        if pkldir:
+            self.pklname = os.path.join(pkldir, os.path.split(self.fp.name)[1] + '.pkl')
+        else:
+            self.pklname = ''
 
     def parse(self):
         """wrapper for original parse function. will read pkl with bdf info, if available."""
 
-        pklname = self.fp.name + '.pkl'
-        if os.path.exists(pklname):        # check for pkl with binary info
-            print 'Found bdf pkl file %s. Loading...' % (pklname)
+        if os.path.exists(self.pklname):        # check for pkl with binary info
+            print 'Found bdf pkl file %s. Loading...' % (self.pklname)
             try:
-                pkl = open(pklname,'rb')
+                pkl = open(self.pklname,'rb')
                 (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols) = pickle.load(pkl)
                 pkl.close()
             except:
@@ -308,6 +314,8 @@ class BDFData (object):
                 self._parse()
         else:
             self._parse()
+
+        return self
 
     def _parse (self):
         """Parse the BDF mime structure and record the locations of the binary
@@ -383,10 +391,9 @@ class BDFData (object):
         self.crosspols = crosspolstr.split ()
 
         # if bdf info pkl not present, write it
-        pklname = self.fp.name + '.pkl'
-        if not os.path.exists(pklname):        
-            print 'Writing bdf pkl info to %s...' % (pklname)
-            pkl = open(pklname,'wb')
+        if (self.pklname and not os.path.exists(self.pklname)):
+            print 'Writing bdf pkl info to %s...' % (self.pklname)
+            pkl = open(self.pklname,'wb')
             # Compute some miscellaneous parameters that we'll need.
             pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
             pkl.close()
