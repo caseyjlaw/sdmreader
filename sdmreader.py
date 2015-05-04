@@ -212,7 +212,6 @@ def read_metadata(sdmfile):
                 scandict[scannum]['bdfstr'] = os.path.join(bdfdir, '*' + str(bdfnumstr))
 
     sourcedict = {}
-    sourcelist = []
     for row in sdm['Source']:
         sourcenum = int(row["sourceId"])
         src = str(row['sourceName'])
@@ -222,16 +221,13 @@ def read_metadata(sdmfile):
             directionCode = ''
         direction = row["direction"]
         (ra,dec) = [float(val) for val in direction.split(' ')[2:]]  # skip first two values in string
-        if (src not in sourcelist):
-            sourcelist.append(src)
-            sourcedict[sourcenum] = {}
-            sourcedict[sourcenum]['source'] = src
-            sourcedict[sourcenum]['directionCode'] = directionCode
-            sourcedict[sourcenum]['ra'] = ra
-            sourcedict[sourcenum]['dec'] = dec
-        else:
-            if (ra != sourcedict[sourcenum]['ra']) and (dec != sourcedict[sourcenum]['dec']):
-                print "WARNING: multiple entries with different coords for source %d (%s)" % (sourcenum,src)
+
+        # original version would add warning if two sources had different ra/dec. this makes one entry for every source
+        sourcedict[sourcenum] = {}
+        sourcedict[sourcenum]['source'] = src
+        sourcedict[sourcenum]['directionCode'] = directionCode
+        sourcedict[sourcenum]['ra'] = ra
+        sourcedict[sourcenum]['dec'] = dec
             
     return [scandict, sourcedict]
 
