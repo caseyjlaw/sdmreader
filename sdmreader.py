@@ -45,7 +45,10 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
     fp = open(bdffile)
     bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
     if not os.path.exists(bdfpkldir):
-        os.makedirs(bdfpkldir)
+        try:
+            os.makedirs(bdfpkldir)
+        except OSError:
+            print 'Directory already exists. Continuing...'
     bdf = BDFData(fp, pkldir=bdfpkldir).parse()
     if readints == 0:
         readints = bdf.n_integrations - nskip
