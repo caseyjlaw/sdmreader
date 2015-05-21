@@ -62,9 +62,9 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
     return data
 
 
-def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
+def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
     """ Calculates and returns uvw in meters for a given SDM, time, and pointing direction.
-    sdmpath is path to sdm directory that includes "Station.xml" file.
+    sdmfile is path to sdm directory that includes "Station.xml" file.
     scan is scan number defined by observatory (first scan == 1).
     datetime is time (as string) to calculate uvw (format: '2014/09/03/08:33:04.20')
     radec is (ra,dec) as tuple in units of degrees (format: (180., +45.))
@@ -86,10 +86,10 @@ def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
             print 'No CASA libraries available. Cannot run calc_uvw.'
             exit(1)
 
-    assert os.path.exists(os.path.join(sdmpath, 'Station.xml'))
+    assert os.path.exists(os.path.join(sdmfile, 'Station.xml'))
 
     # get scan info
-    scans, sources = read_metadata(sdmpath)
+    scans, sources = read_metadata(sdmfile)
 
     # default is to use scan info
     if (datetime == 0) and (len(radec) == 0):
@@ -118,16 +118,18 @@ def calc_uvw(sdmpath, scan=0, datetime=0, radec=()):
         direction = me.direction('J2000', str(ra)+'deg', str(dec)+'deg')
 
     # define metadata "frame" for uvw calculation
-    root = et.parse(os.path.join(sdmpath, 'ExecBlock.xml')).getroot()
-    telescopename = root.iter('row').next().find('telescopeName').text
+    sdm = sdmpy.SDM(sdmfile)
+    telescopename = sdm['ExecBlock'][0]['telescopeName'].strip()
+    print 'Found observatory name %s' % telescopename
 
     me.doframe(me.observatory(telescopename))
     me.doframe(me.epoch('utc', datetime))
     me.doframe(direction)
 
     # read antpos
-    root = et.parse(os.path.join(sdmpath, 'Station.xml')).getroot()
-    positions = [rr.find('position').text.split(' ') for rr in root.iter('row') if 'ANTENNA' in rr.find('type').text]
+    positions = [ant.position.strip().split(' ') for ant in sdm['Station'] if 'ANTENNA' in ant.type]
+#    root = et.parse(os.path.join(sdmfile, 'Station.xml')).getroot()
+#    positions = [rr.find('position').text.split(' ') for rr in root.iter('row') if 'ANTENNA' in rr.find('type').text]
     x = [float(positions[i][2]) for i in range(len(positions))]
     y = [float(positions[i][3]) for i in range(len(positions))]
     z = [float(positions[i][4]) for i in range(len(positions))]
@@ -179,33 +181,60 @@ def read_metadata(sdmfile):
 
     # read Scan.xml into dictionary also and make a list
     scandict = {}
-    for row in sdm['Scan']:
-        scannum = int(row['scanNumber'])
-        rowkey = [k for k in row.keys if k.lower() == 'numsubscan'][0]   # need to find key but caps rule changes between ALMA/VLA
-        nsubs = int(row[rowkey])
-        scanintents = row['scanIntent']
-        intentstr = string.join(scanintents.split(' ')[2:], ' ')
-        startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
-        endmjd = float(row['endTime'])*1.0E-9/86400.0
-        src = str(row["sourceName"])        # source name
-        if (len(src) < 1):
-            print "Scan %d appears to be corrupt." % (len(scandict)+1)
-        else:
-            scandict[scannum] = {}
-            scandict[scannum]['startmjd'] = startmjd
-            scandict[scannum]['endmjd'] = endmjd
-            scandict[scannum]['source'] = src
-            scandict[scannum]['intent'] = intentstr
-            scandict[scannum]['nsubs'] = nsubs
-            scandict[scannum]['duration'] = endmjd-startmjd
+    if len(sdm['Scan']) > 1:    # workaround: conversion from MS to SDM tends to make scans into subscans of one large scan
+        for row in sdm['Scan']:
+            scannum = int(row['scanNumber'])
+            rowkey = [k for k in row.keys if k.lower() == 'numsubscan'][0]   # need to find key but caps rule changes between ALMA/VLA
+            nsubs = int(row[rowkey])
+            scanintents = row['scanIntent']
+            intentstr = string.join(scanintents.strip().split(' ')[2:], ' ')
+            startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
+            endmjd = float(row['endTime'])*1.0E-9/86400.0
+            try:
+                src = str(row["sourceName"])        # source name
+            except:
+                print "Scan %d has no source name" % (len(scandict)+1)
+            finally:
+                scandict[scannum] = {}
+                scandict[scannum]['source'] = src
+                scandict[scannum]['startmjd'] = startmjd
+                scandict[scannum]['endmjd'] = endmjd
+                scandict[scannum]['intent'] = intentstr
+                scandict[scannum]['nsubs'] = nsubs
+                scandict[scannum]['duration'] = endmjd-startmjd
+    elif ( (len(sdm['Scan']) == 1) and (len(sdm['Subscan']) > 1) ):
+        print 'Found only one scan with multiple subscans. Treating subscans as scans.'
+        for row in sdm['Subscan']:
+            scannum = int(row['subscanNumber'])
+            startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
+            endmjd = float(row['endTime'])*1.0E-9/86400.0
+            scanintents = row['subscanIntent']
+            if len(scanintents.strip().split(' ')) > 1:
+                intentstr = string.join(scanintents.strip().split(' ')[2:], ' ')
+            else:
+                intentstr = scanintents
 
+            try:
+                src = row["fieldName"].strip()        # source name
+            except:
+                print "Scan %d has no source name" % (len(scandict)+1)
+            finally:
+                scandict[scannum] = {}
+                scandict[scannum]['source'] = src
+                scandict[scannum]['intent'] = intentstr
+                scandict[scannum]['startmjd'] = startmjd
+                scandict[scannum]['endmjd'] = endmjd
+                scandict[scannum]['duration'] = endmjd-startmjd
 
     for row in sdm['Main']:
-        scannum = int(row['scanNumber'])
+        if 'VLA' in sdm['ExecBlock'][0]['telescopeName']:
+            scannum = int(row['scanNumber'])
+        elif 'GMRT' in sdm['ExecBlock'][0]['telescopeName']:        
+            scannum = int(row['subscanNumber'])
         try:
-            bdfnumstr = row['dataUID'].split('/')[-1]
+            bdfnumstr = row['dataUID'].strip().split('/')[-1]
         except KeyError:
-            bdfnumstr = row['dataOid'].split('/')[-1]
+            bdfnumstr = row['dataOid'].strip().split('/')[-1]
         if bdfnumstr == 'X1':  
             scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
         else:
@@ -217,13 +246,13 @@ def read_metadata(sdmfile):
     sourcedict = {}
     for row in sdm['Source']:
         sourcenum = int(row["sourceId"])
-        src = str(row['sourceName'])
+        src = row['sourceName'].strip()
         try:
-            directioncode = str(row['directionCode'])
+            directionCode = str(row['directionCode'])
         except:
             directionCode = ''
-        direction = row["direction"]
-        (ra,dec) = [float(val) for val in direction.split(' ')[2:]]  # skip first two values in string
+        direction = row["direction"].strip()
+        (ra,dec) = [float(val) for val in direction.strip().split(' ')[2:]]  # skip first two values in string
 
         # original version would add warning if two sources had different ra/dec. this makes one entry for every source
         sourcedict[sourcenum] = {}
