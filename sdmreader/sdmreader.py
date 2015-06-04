@@ -22,6 +22,8 @@ import os, glob, mmap, math, string, sdmpy, pickle
 import xml.etree.ElementTree as et    # sdmpy can do this part...
 from email.feedparser import FeedParser
 from email.message import Message
+import logging
+logger = logging.getLogger(__name__)
 
 def read_bdf(sdmpath, scan, nskip=0, readints=0):
     """ Reads given range of integrations from sdm of given scan.
@@ -36,10 +38,10 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
     if len(bdffiles) == 1:
         bdffile = bdffiles[0]
     elif len(bdffiles) > 1:
-        print 'Too many bdfs found for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr'])
+        logger.warning('Too many bdfs found for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr']))
         exit(1)
     else:
-        print 'No bdfs found for scan %d and bdfstr %s. Does ASDMBinary directory exist?' % (scan, scans[scan]['bdfstr'])
+        logger.warning('No bdfs found for scan %d and bdfstr %s. Does ASDMBinary directory exist?' % (scan, scans[scan]['bdfstr']))
         exit(1)
 
     fp = open(bdffile)
@@ -48,12 +50,12 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
         try:
             os.makedirs(bdfpkldir)
         except OSError:
-            print 'Directory already exists. Continuing...'
+            logger.info('Directory already exists. Continuing...')
     bdf = BDFData(fp, pkldir=bdfpkldir).parse()
     if readints == 0:
         readints = bdf.n_integrations - nskip
 
-    print 'Reading %d ints starting at int %d' % (readints, nskip)
+    logger.info('Reading %d ints starting at int %d' % (readints, nskip))
     data = np.empty( (readints, bdf.n_baselines, bdf.n_channels, bdf.n_basebands), dtype='complex64', order='C')
     for i in xrange(readints):
         data[i] = bdf.get_data ('crossData.bin', i+nskip)
@@ -76,14 +78,14 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
         import casautil
         me = casautil.tools.measures()
         qa = casautil.tools.quanta()
-        print 'Accessing CASA libraries with casautil.'
+        logger.info('Accessing CASA libraries with casautil.')
     except ImportError:
         try:
             from casa import quanta as qa
             from casa import measures as me
-            print 'Accessing CASA libraries with casapy.'
+            logger.info('Accessing CASA libraries with casapy.')
         except ImportError:
-            print 'No CASA libraries available. Cannot run calc_uvw.'
+            logger.warning('No CASA libraries available. Cannot run calc_uvw.')
             exit(1)
 
     assert os.path.exists(os.path.join(sdmfile, 'Station.xml'))
@@ -95,7 +97,7 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
     if (datetime == 0) and (len(radec) == 0):
         assert scan != 0   # default scan value not valid
 
-        print 'Calculating uvw for first integration of scan %d of source %s' % (scan, scans[scan]['source'])
+        logger.info('Calculating uvw for first integration of scan %d of source %s' % (scan, scans[scan]['source']))
         datetime = qa.time(qa.quantity(scans[scan]['startmjd'],'d'), form="ymd", prec=8)[0]
         sourcenum = [kk for kk in sources.keys() if sources[kk]['source'] == scans[scan]['source']][0]
         direction = me.direction('J2000', str(np.degrees(sources[sourcenum]['ra']))+'deg', str(np.degrees(sources[sourcenum]['dec']))+'deg')
@@ -105,7 +107,7 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
         assert scan != 0   # default scan value not valid
         assert '/' in datetime   # datetime should be in be in yyyy/mm/dd/hh:mm:ss.sss
 
-        print 'Calculating uvw at %s for scan %d of source %s' % (datetime, scan, scans[scan]['source'])
+        logger.info('Calculating uvw at %s for scan %d of source %s' % (datetime, scan, scans[scan]['source']))
         sourcenum = [kk for kk in sources.keys() if sources[kk]['source'] == scans[scan]['source']][0]
         direction = me.direction('J2000', str(np.degrees(sources[sourcenum]['ra']))+'deg', str(np.degrees(sources[sourcenum]['dec']))+'deg')
 
@@ -113,14 +115,14 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
         assert '/' in datetime   # datetime should be in be in yyyy/mm/dd/hh:mm:ss.sss
         assert len(radec) == 2  # radec is (ra,dec) tuple in units of degrees
 
-        print 'Calculating uvw at %s in direction %s' % (datetime, direction)
+        logger.info('Calculating uvw at %s in direction %s' % (datetime, direction))
         ra = radec[0]; dec = radec[1]
         direction = me.direction('J2000', str(ra)+'deg', str(dec)+'deg')
 
     # define metadata "frame" for uvw calculation
     sdm = sdmpy.SDM(sdmfile)
     telescopename = sdm['ExecBlock'][0]['telescopeName'].strip()
-    print 'Found observatory name %s' % telescopename
+    logger.info('Found observatory name %s' % telescopename)
 
     me.doframe(me.observatory(telescopename))
     me.doframe(me.epoch('utc', datetime))
@@ -165,10 +167,10 @@ def read_metadata(sdmfile):
     sdmfile = sdmfile.rstrip('/')
 
     if (os.path.exists(sdmfile) == False):
-        print "Could not find the SDM file = ", sdmfile
+        logger.warning('Could not find the SDM file = %s' % sdmfile)
         return([],[])
     if (os.path.exists(os.path.join(sdmfile, 'Antenna.xml')) == False):
-        print "Could not find the Antenna.xml file.  Are you sure this is an SDM?"
+        logger.warning('Could not find the Antenna.xml file.  Are you sure this is an SDM?')
         return([],[])
 
     # if ASDMBinary directory exists, this is normal archive product. else assume we are on CBE.
@@ -193,7 +195,7 @@ def read_metadata(sdmfile):
             try:
                 src = str(row["sourceName"])        # source name
             except:
-                print "Scan %d has no source name" % (len(scandict)+1)
+                logger.warning('Scan %d has no source name' % (len(scandict)+1))
             finally:
                 scandict[scannum] = {}
                 scandict[scannum]['source'] = src
@@ -203,7 +205,7 @@ def read_metadata(sdmfile):
                 scandict[scannum]['nsubs'] = nsubs
                 scandict[scannum]['duration'] = endmjd-startmjd
     elif ( (len(sdm['Scan']) == 1) and (len(sdm['Subscan']) > 1) ):
-        print 'Found only one scan with multiple subscans. Treating subscans as scans.'
+        logger.warning('Found only one scan with multiple subscans. Treating subscans as scans.')
         for row in sdm['Subscan']:
             scannum = int(row['subscanNumber'])
             startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
@@ -217,7 +219,7 @@ def read_metadata(sdmfile):
             try:
                 src = row["fieldName"].strip()        # source name
             except:
-                print "Scan %d has no source name" % (len(scandict)+1)
+                logger.warning('Scan %d has no source name' % (len(scandict)+1))
             finally:
                 scandict[scannum] = {}
                 scandict[scannum]['source'] = src
@@ -332,13 +334,13 @@ class BDFData (object):
         """wrapper for original parse function. will read pkl with bdf info, if available."""
 
         if os.path.exists(self.pklname):        # check for pkl with binary info
-            print 'Found bdf pkl file %s. Loading...' % (self.pklname)
+            logger.info('Found bdf pkl file %s. Loading...' % (self.pklname))
             try:
                 pkl = open(self.pklname,'rb')
                 (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols) = pickle.load(pkl)
                 pkl.close()
             except:
-                print 'Something went wrong. Parsing bdf directly...'
+                logger.warning('Something went wrong. Parsing bdf directly...')
                 self._parse()
         else:
             self._parse()
@@ -420,14 +422,13 @@ class BDFData (object):
 
         # if bdf info pkl not present, write it
         if (self.pklname and not os.path.exists(self.pklname)):
-            print 'Writing bdf pkl info to %s...' % (self.pklname)
+            logger.info('Writing bdf pkl info to %s...' % (self.pklname))
             pkl = open(self.pklname,'wb')
             # Compute some miscellaneous parameters that we'll need.
             pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
             pkl.close()
 
         return self # convenience
-
 
     def get_data (self, datakind, integnum):
         """Given an integration number (0 <= integnum < self.n_integrations) and a
