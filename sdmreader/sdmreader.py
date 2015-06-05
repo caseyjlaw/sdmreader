@@ -23,7 +23,7 @@ import xml.etree.ElementTree as et    # sdmpy can do this part...
 from email.feedparser import FeedParser
 from email.message import Message
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('rtpipe.parsesdm.sdmreader')
 
 def read_bdf(sdmpath, scan, nskip=0, readints=0):
     """ Reads given range of integrations from sdm of given scan.
@@ -38,10 +38,10 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
     if len(bdffiles) == 1:
         bdffile = bdffiles[0]
     elif len(bdffiles) > 1:
-        logger.warning('Too many bdfs found for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr']))
+        logger.error('Too many bdfs found for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr']))
         exit(1)
     else:
-        logger.warning('No bdfs found for scan %d and bdfstr %s. Does ASDMBinary directory exist?' % (scan, scans[scan]['bdfstr']))
+        logger.error('No bdfs found for scan %d and bdfstr %s. Does ASDMBinary directory exist?' % (scan, scans[scan]['bdfstr']))
         exit(1)
 
     fp = open(bdffile)
@@ -50,7 +50,7 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
         try:
             os.makedirs(bdfpkldir)
         except OSError:
-            logger.info('Directory already exists. Continuing...')
+            logger.warn('Directory already exists. Continuing...')
     bdf = BDFData(fp, pkldir=bdfpkldir).parse()
     if readints == 0:
         readints = bdf.n_integrations - nskip
@@ -167,10 +167,10 @@ def read_metadata(sdmfile):
     sdmfile = sdmfile.rstrip('/')
 
     if (os.path.exists(sdmfile) == False):
-        logger.warning('Could not find the SDM file = %s' % sdmfile)
+        logger.warn('Could not find the SDM file = %s' % sdmfile)
         return([],[])
     if (os.path.exists(os.path.join(sdmfile, 'Antenna.xml')) == False):
-        logger.warning('Could not find the Antenna.xml file.  Are you sure this is an SDM?')
+        logger.warn('Could not find the Antenna.xml file.  Are you sure this is an SDM?')
         return([],[])
 
     # if ASDMBinary directory exists, this is normal archive product. else assume we are on CBE.
@@ -195,7 +195,7 @@ def read_metadata(sdmfile):
             try:
                 src = str(row["sourceName"])        # source name
             except:
-                logger.warning('Scan %d has no source name' % (len(scandict)+1))
+                logger.warn('Scan %d has no source name' % (len(scandict)+1))
             finally:
                 scandict[scannum] = {}
                 scandict[scannum]['source'] = src
@@ -205,7 +205,7 @@ def read_metadata(sdmfile):
                 scandict[scannum]['nsubs'] = nsubs
                 scandict[scannum]['duration'] = endmjd-startmjd
     elif ( (len(sdm['Scan']) == 1) and (len(sdm['Subscan']) > 1) ):
-        logger.warning('Found only one scan with multiple subscans. Treating subscans as scans.')
+        logger.warn('Found only one scan with multiple subscans. Treating subscans as scans.')
         for row in sdm['Subscan']:
             scannum = int(row['subscanNumber'])
             startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
@@ -219,7 +219,7 @@ def read_metadata(sdmfile):
             try:
                 src = row["fieldName"].strip()        # source name
             except:
-                logger.warning('Scan %d has no source name' % (len(scandict)+1))
+                logger.warn('Scan %d has no source name' % (len(scandict)+1))
             finally:
                 scandict[scannum] = {}
                 scandict[scannum]['source'] = src
