@@ -35,14 +35,11 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
     scans, sources = read_metadata(sdmpath)
     assert scans[scan]['bdfstr']
     bdffiles = glob.glob(scans[scan]['bdfstr'])
-    if len(bdffiles) == 1:
-        bdffile = bdffiles[0]
-    elif len(bdffiles) > 1:
-        logger.error('Too many bdfs found for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr']))
-        exit(1)
-    else:
-        logger.error('No bdfs found for scan %d and bdfstr %s. Does ASDMBinary directory exist?' % (scan, scans[scan]['bdfstr']))
-        exit(1)
+    try:
+        assert len(bdffiles) == 1
+    except:
+        logger.error('Did not find (exactly) one bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr']))
+    bdffile = bdffiles[0]
 
     fp = open(bdffile)
     bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
