@@ -78,12 +78,12 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
         import casautil
         me = casautil.tools.measures()
         qa = casautil.tools.quanta()
-        logger.info('Accessing CASA libraries with casautil.')
+        logger.debug('Accessing CASA libraries with casautil.')
     except ImportError:
         try:
             from casa import quanta as qa
             from casa import measures as me
-            logger.info('Accessing CASA libraries with casapy.')
+            logger.debug('Accessing CASA libraries with casapy.')
         except ImportError:
             logger.warning('No CASA libraries available. Cannot run calc_uvw.')
             exit(1)
@@ -122,7 +122,7 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
     # define metadata "frame" for uvw calculation
     sdm = sdmpy.SDM(sdmfile)
     telescopename = sdm['ExecBlock'][0]['telescopeName'].strip()
-    logger.info('Found observatory name %s' % telescopename)
+    logger.debug('Found observatory name %s' % telescopename)
 
     me.doframe(me.observatory(telescopename))
     me.doframe(me.epoch('utc', datetime))
