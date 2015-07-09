@@ -54,7 +54,7 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
         readints = bdf.n_integrations - nskip
 
     logger.info('Reading %d ints starting at int %d' % (readints, nskip))
-    data = np.empty( (readints, bdf.n_baselines, bdf.n_channels, bdf.n_basebands), dtype='complex64', order='C')
+    data = np.empty( (readints, bdf.n_baselines, bdf.n_channels, len(bdf.crosspols)), dtype='complex64', order='C')
     for i in xrange(readints):
         data[i] = bdf.get_data ('crossData.bin', i+nskip)
 #        flag[i] = bdf.get_data ('flags.bin', i+nskip)  # need to get auto+cross parsing right to implement this
@@ -417,6 +417,7 @@ class BDFData (object):
         self.n_spws = nspw
         self.n_channels = nchan
         self.crosspols = crosspolstr.split ()
+        self.n_pols = len(self.crosspols)
 
         # if bdf info pkl not present, write it
         if os.path.exists(os.path.split(self.pklname)[0]):   # check that directory exists
