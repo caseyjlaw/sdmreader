@@ -25,10 +25,11 @@ from email.message import Message
 import logging
 logger = logging.getLogger('rtpipe.parsesdm.sdmreader')
 
-def read_bdf(sdmpath, scan, nskip=0, readints=0):
+def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
     """ Reads given range of integrations from sdm of given scan.
     Uses BDFData object to read.
     readints=0 will read all of bdf (skipping nskip).
+    Option to write pkl to store bdf info for faster parse next time.
     """
 
     assert os.path.exists(sdmpath)
@@ -43,7 +44,7 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0):
 
     fp = open(bdffile)
     bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
-    if not os.path.exists(bdfpkldir):
+    if not os.path.exists(bdfpkldir) and writebdfpkl:
         try:
             os.makedirs(bdfpkldir)
         except OSError:
@@ -418,12 +419,13 @@ class BDFData (object):
         self.crosspols = crosspolstr.split ()
 
         # if bdf info pkl not present, write it
-        if (self.pklname and not os.path.exists(self.pklname)):
-            logger.info('Writing bdf pkl info to %s...' % (self.pklname))
-            pkl = open(self.pklname,'wb')
-            # Compute some miscellaneous parameters that we'll need.
-            pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
-            pkl.close()
+        if os.path.exists(os.path.split(self.pklname)[0]):   # check that directory exists
+            if self.pklname and not os.path.exists(self.pklname):
+                logger.info('Writing bdf pkl info to %s...' % (self.pklname))
+                pkl = open(self.pklname,'wb')
+                # Compute some miscellaneous parameters that we'll need.
+                pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
+                pkl.close()
 
         return self # convenience
 
