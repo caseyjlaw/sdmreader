@@ -33,7 +33,7 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
     """
 
     assert os.path.exists(sdmpath)
-    scans, sources = read_metadata(sdmpath)
+    scans, sources = read_metadata(sdmpath, scan)
     assert scans[scan]['bdfstr']
     bdffiles = glob.glob(scans[scan]['bdfstr'])
     try:
@@ -65,7 +65,7 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
 def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
     """ Calculates and returns uvw in meters for a given SDM, time, and pointing direction.
     sdmfile is path to sdm directory that includes "Station.xml" file.
-    scan is scan number defined by observatory (first scan == 1).
+    scan is scan number defined by observatory.
     datetime is time (as string) to calculate uvw (format: '2014/09/03/08:33:04.20')
     radec is (ra,dec) as tuple in units of degrees (format: (180., +45.))
     """
@@ -89,7 +89,7 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
     assert os.path.exists(os.path.join(sdmfile, 'Station.xml'))
 
     # get scan info
-    scans, sources = read_metadata(sdmfile)
+    scans, sources = read_metadata(sdmfile, scan)
 
     # default is to use scan info
     if (datetime == 0) and (len(radec) == 0):
@@ -154,10 +154,10 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
 
     return u, v, w
 
-
-def read_metadata(sdmfile):
+def read_metadata(sdmfile, scan=0):
     """ Parses XML files to get scan and source information.
     Returns tuple of dicts (scan, source).
+    Optional arg scan can be used to speed up parsing for single scan.
     bdfstr in scan dict helps find BDFs with read_bdf (with special behavior for prearchive data.
     """
 
@@ -184,82 +184,87 @@ def read_metadata(sdmfile):
     if len(sdm['Scan']) > 1:    # workaround: conversion from MS to SDM tends to make scans into subscans of one large scan
         for row in sdm['Scan']:
             scannum = int(row['scanNumber'])
-            rowkey = [k for k in row.keys if k.lower() == 'numsubscan'][0]   # need to find key but caps rule changes between ALMA/VLA
-            nsubs = int(row[rowkey])
-            scanintents = row['scanIntent']
-            intentstr = string.join(scanintents.strip().split(' ')[2:], ' ')
-            startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
-            endmjd = float(row['endTime'])*1.0E-9/86400.0
-            try:
-                src = str(row["sourceName"])        # source name
-            except:
-                logger.warn('Scan %d has no source name' % (len(scandict)+1))
-            finally:
-                scandict[scannum] = {}
-                scandict[scannum]['source'] = src
-                scandict[scannum]['startmjd'] = startmjd
-                scandict[scannum]['endmjd'] = endmjd
-                scandict[scannum]['intent'] = intentstr
-                scandict[scannum]['nsubs'] = nsubs
-                scandict[scannum]['duration'] = endmjd-startmjd
+            if (scan == 0) or (scannum == scan):
+                rowkey = [k for k in row.keys if k.lower() == 'numsubscan'][0]   # need to find key but caps rule changes between ALMA/VLA
+                nsubs = int(row[rowkey])
+                scanintents = row['scanIntent']
+                intentstr = string.join(scanintents.strip().split(' ')[2:], ' ')
+                startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
+                endmjd = float(row['endTime'])*1.0E-9/86400.0
+                try:
+                    src = str(row["sourceName"])        # source name
+                except:
+                    logger.warn('Scan %d has no source name' % (len(scandict)+1))
+                finally:
+                    scandict[scannum] = {}
+                    scandict[scannum]['source'] = src
+                    scandict[scannum]['startmjd'] = startmjd
+                    scandict[scannum]['endmjd'] = endmjd
+                    scandict[scannum]['intent'] = intentstr
+                    scandict[scannum]['nsubs'] = nsubs
+                    scandict[scannum]['duration'] = endmjd-startmjd
     elif ( (len(sdm['Scan']) == 1) and (len(sdm['Subscan']) > 1) ):
         logger.warn('Found only one scan with multiple subscans. Treating subscans as scans.')
         for row in sdm['Subscan']:
             scannum = int(row['subscanNumber'])
-            startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
-            endmjd = float(row['endTime'])*1.0E-9/86400.0
-            scanintents = row['subscanIntent']
-            if len(scanintents.strip().split(' ')) > 1:
-                intentstr = string.join(scanintents.strip().split(' ')[2:], ' ')
-            else:
-                intentstr = scanintents
+            if (scan == 0) or (scannum == scan):
+                startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
+                endmjd = float(row['endTime'])*1.0E-9/86400.0
+                scanintents = row['subscanIntent']
+                if len(scanintents.strip().split(' ')) > 1:
+                    intentstr = string.join(scanintents.strip().split(' ')[2:], ' ')
+                else:
+                    intentstr = scanintents
 
-            try:
-                src = row["fieldName"].strip()        # source name
-            except:
-                logger.warn('Scan %d has no source name' % (len(scandict)+1))
-            finally:
-                scandict[scannum] = {}
-                scandict[scannum]['source'] = src
-                scandict[scannum]['intent'] = intentstr
-                scandict[scannum]['startmjd'] = startmjd
-                scandict[scannum]['endmjd'] = endmjd
-                scandict[scannum]['duration'] = endmjd-startmjd
+                try:
+                    src = row["fieldName"].strip()        # source name
+                except:
+                    logger.warn('Scan %d has no source name' % (len(scandict)+1))
+                finally:
+                    scandict[scannum] = {}
+                    scandict[scannum]['source'] = src
+                    scandict[scannum]['intent'] = intentstr
+                    scandict[scannum]['startmjd'] = startmjd
+                    scandict[scannum]['endmjd'] = endmjd
+                    scandict[scannum]['duration'] = endmjd-startmjd
 
+    sourcedict = {}
     for row in sdm['Main']:
         if 'VLA' in sdm['ExecBlock'][0]['telescopeName']:
             scannum = int(row['scanNumber'])
         elif 'GMRT' in sdm['ExecBlock'][0]['telescopeName']:        
             scannum = int(row['subscanNumber'])
-        try:
-            bdfnumstr = row['dataUID'].strip().split('/')[-1]
-        except KeyError:
-            bdfnumstr = row['dataOid'].strip().split('/')[-1]
-        if bdfnumstr == 'X1':  
-            scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
-        else:
-            if location == 'archive':   # most use cases
-                scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', '*' + str(bdfnumstr))
-            elif location == 'cbe':  # bdfs stored remotly on CBE
-                scandict[scannum]['bdfstr'] = os.path.join(bdfdir, '*' + str(bdfnumstr))
 
-    sourcedict = {}
-    for row in sdm['Source']:
-        sourcenum = int(row["sourceId"])
-        src = row['sourceName'].strip()
-        try:
-            directionCode = str(row['directionCode'])
-        except:
-            directionCode = ''
-        direction = row["direction"].strip()
-        (ra,dec) = [float(val) for val in direction.strip().split(' ')[2:]]  # skip first two values in string
+        if (scan == 0) or (scannum == scan):
+            try:
+                bdfnumstr = row['dataUID'].strip().split('/')[-1]
+            except KeyError:
+                bdfnumstr = row['dataOid'].strip().split('/')[-1]
+            if bdfnumstr == 'X1':  
+                scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
+            else:
+                if location == 'archive':   # most use cases
+                    scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', '*' + str(bdfnumstr))
+                elif location == 'cbe':  # bdfs stored remotly on CBE
+                    scandict[scannum]['bdfstr'] = os.path.join(bdfdir, '*' + str(bdfnumstr))
 
-        # original version would add warning if two sources had different ra/dec. this makes one entry for every source
-        sourcedict[sourcenum] = {}
-        sourcedict[sourcenum]['source'] = src
-        sourcedict[sourcenum]['directionCode'] = directionCode
-        sourcedict[sourcenum]['ra'] = ra
-        sourcedict[sourcenum]['dec'] = dec
+            row = sdm['Source'][scannum]
+#            for row in sdm['Source']:
+            sourcenum = int(row["sourceId"])
+            src = row['sourceName'].strip()
+            try:
+                directionCode = str(row['directionCode'])
+            except:
+                directionCode = ''
+            direction = row["direction"].strip()
+            (ra,dec) = [float(val) for val in direction.strip().split(' ')[2:]]  # skip first two values in string
+
+            # original version would add warning if two sources had different ra/dec. this makes one entry for every source
+            sourcedict[sourcenum] = {}
+            sourcedict[sourcenum]['source'] = src
+            sourcedict[sourcenum]['directionCode'] = directionCode
+            sourcedict[sourcenum]['ra'] = ra
+            sourcedict[sourcenum]['dec'] = dec
             
     return [scandict, sourcedict]
 
