@@ -180,9 +180,10 @@ def read_metadata(sdmfile, scan=0):
     sdm = sdmpy.SDM(sdmfile)
 
     # read Scan.xml into dictionary also and make a list
-    scandict = {}
+    scandict = {}; sourcedict = {}
     if len(sdm['Scan']) > 1:    # workaround: conversion from MS to SDM tends to make scans into subscans of one large scan
-        for row in sdm['Scan']:
+        for i in range(len(sdm['Scan'])):
+            row  = sdm['Scan'][i]
             scannum = int(row['scanNumber'])
             if (scan == 0) or (scannum == scan):
                 rowkey = [k for k in row.keys if k.lower() == 'numsubscan'][0]   # need to find key but caps rule changes between ALMA/VLA
@@ -203,6 +204,35 @@ def read_metadata(sdmfile, scan=0):
                     scandict[scannum]['intent'] = intentstr
                     scandict[scannum]['nsubs'] = nsubs
                     scandict[scannum]['duration'] = endmjd-startmjd
+        
+                try:
+                    bdfnumstr = sdm['Main'][i]['dataUID'].strip().split('/')[-1]
+                except KeyError:
+                    bdfnumstr = sdm['Main'][i]['dataOid'].strip().split('/')[-1]
+
+                if bdfnumstr == 'X1':  
+                    scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
+                else:
+                    if location == 'archive':   # most use cases
+                        scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', '*' + str(bdfnumstr))
+                    elif location == 'cbe':  # bdfs stored remotly on CBE
+                        scandict[scannum]['bdfstr'] = os.path.join(bdfdir, '*' + str(bdfnumstr))
+
+                if scandict[scannum]['source'] not in [sourcedict[source]['source'] for source in sourcedict.iterkeys()]:
+                    for row in sdm['Field']:
+                        src = row['fieldName'].strip()
+                        if src == scandict[scannum]['source']:
+                            sourcenum = int(row["sourceId"])
+                            direction = row["referenceDir"].strip()
+                            (ra,dec) = [float(val) for val in direction.strip().split(' ')[3:]]  # skip first two values in string
+
+                            # original version would add warning if two sources had different ra/dec. this makes one entry for every source
+                            sourcedict[sourcenum] = {}
+                            sourcedict[sourcenum]['source'] = src
+                            sourcedict[sourcenum]['ra'] = ra
+                            sourcedict[sourcenum]['dec'] = dec
+                            break  # just take first instance, then escape
+
     elif ( (len(sdm['Scan']) == 1) and (len(sdm['Subscan']) > 1) ):
         logger.warn('Found only one scan with multiple subscans. Treating subscans as scans.')
         for row in sdm['Subscan']:
@@ -228,43 +258,10 @@ def read_metadata(sdmfile, scan=0):
                     scandict[scannum]['endmjd'] = endmjd
                     scandict[scannum]['duration'] = endmjd-startmjd
 
-    sourcedict = {}
-    for row in sdm['Main']:
-        if 'VLA' in sdm['ExecBlock'][0]['telescopeName']:
-            scannum = int(row['scanNumber'])
-        elif 'GMRT' in sdm['ExecBlock'][0]['telescopeName']:        
-            scannum = int(row['subscanNumber'])
 
-        if (scan == 0) or (scannum == scan):
-            try:
-                bdfnumstr = row['dataUID'].strip().split('/')[-1]
-            except KeyError:
-                bdfnumstr = row['dataOid'].strip().split('/')[-1]
-            if bdfnumstr == 'X1':  
-                scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
-            else:
-                if location == 'archive':   # most use cases
-                    scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', '*' + str(bdfnumstr))
-                elif location == 'cbe':  # bdfs stored remotly on CBE
-                    scandict[scannum]['bdfstr'] = os.path.join(bdfdir, '*' + str(bdfnumstr))
 
-            row = sdm['Source'][scannum]
-#            for row in sdm['Source']:
-            sourcenum = int(row["sourceId"])
-            src = row['sourceName'].strip()
-            try:
-                directionCode = str(row['directionCode'])
-            except:
-                directionCode = ''
-            direction = row["direction"].strip()
-            (ra,dec) = [float(val) for val in direction.strip().split(' ')[2:]]  # skip first two values in string
 
-            # original version would add warning if two sources had different ra/dec. this makes one entry for every source
-            sourcedict[sourcenum] = {}
-            sourcedict[sourcenum]['source'] = src
-            sourcedict[sourcenum]['directionCode'] = directionCode
-            sourcedict[sourcenum]['ra'] = ra
-            sourcedict[sourcenum]['dec'] = dec
+
             
     return [scandict, sourcedict]
 
