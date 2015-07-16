@@ -15,8 +15,6 @@ Note: baseline order used in the bdf is a bit unusual and different from what is
 Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in range(nants) for i in range(j)], so [ (1,2), (1,3), (2,3), (1,4), ...].
 """
 
-__all__ = ['read_bdf', 'calc_uvw', 'read_metadata', 'BDFData']
-
 import numpy as np
 import os, glob, mmap, math, string, sdmpy, pickle
 import xml.etree.ElementTree as et    # sdmpy can do this part...
@@ -154,14 +152,14 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
 
     return u, v, w
 
-def read_metadata(sdmfile, scan=0):
+def read_metadata(sdmfile, scan=0, bdfdir='/lustre/evla/wcbe/data/bunker'):
     """ Parses XML files to get scan and source information.
     Returns tuple of dicts (scan, source).
     Optional arg scan can be used to speed up parsing for single scan.
     bdfstr in scan dict helps find BDFs with read_bdf (with special behavior for prearchive data.
+    bdfdir is optional location to look for bdfs, if using pre-archive SDM.
     """
 
-    bdfdir = '/lustre/evla/wcbe/data/bunker'
     sdmfile = sdmfile.rstrip('/')
 
     if (os.path.exists(sdmfile) == False):
@@ -204,11 +202,13 @@ def read_metadata(sdmfile, scan=0):
                     scandict[scannum]['intent'] = intentstr
                     scandict[scannum]['nsubs'] = nsubs
                     scandict[scannum]['duration'] = endmjd-startmjd
+                    scandict[scannum]['nints'] = int(sdm['Main'][i]['numIntegration'])
         
                 try:
                     bdfnumstr = sdm['Main'][i]['dataUID'].strip().split('/')[-1]
                 except KeyError:
                     bdfnumstr = sdm['Main'][i]['dataOid'].strip().split('/')[-1]
+
 
                 if bdfnumstr == 'X1':  
                     scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
