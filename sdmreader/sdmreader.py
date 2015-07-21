@@ -40,25 +40,24 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
         logger.error('Did not find (exactly) one bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr']))
     bdffile = bdffiles[0]
 
-    fp = open(bdffile)
-    bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
-    if not os.path.exists(bdfpkldir) and writebdfpkl:
-        try:
-            os.makedirs(bdfpkldir)
-        except OSError:
-            logger.warn('Directory already exists. Continuing...')
-    bdf = BDFData(fp, pkldir=bdfpkldir).parse()
-    if readints == 0:
-        readints = bdf.n_integrations - nskip
+    with open(bdffile, 'r') as fp:
+        bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
+        if not os.path.exists(bdfpkldir) and writebdfpkl:
+            try:
+                os.makedirs(bdfpkldir)
+            except OSError:
+                logger.warn('Directory already exists. Continuing...')
+        bdf = BDFData(fp, pkldir=bdfpkldir).parse()
+        if readints == 0:
+            readints = bdf.n_integrations - nskip
 
-    logger.info('Reading %d ints starting at int %d' % (readints, nskip))
-    data = np.empty( (readints, bdf.n_baselines, bdf.n_channels, len(bdf.crosspols)), dtype='complex64', order='C')
-    for i in xrange(readints):
-        data[i] = bdf.get_data ('crossData.bin', i+nskip)
-#        flag[i] = bdf.get_data ('flags.bin', i+nskip)  # need to get auto+cross parsing right to implement this
-    fp.close()
+        logger.info('Reading %d ints starting at int %d' % (readints, nskip))
+        data = np.empty( (readints, bdf.n_baselines, bdf.n_channels, len(bdf.crosspols)), dtype='complex64', order='C')
+        for i in xrange(readints):
+            data[i] = bdf.get_data ('crossData.bin', i+nskip)
+#            flag[i] = bdf.get_data ('flags.bin', i+nskip)  # need to get auto+cross parsing right to implement this
+
     return data
-
 
 def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
     """ Calculates and returns uvw in meters for a given SDM, time, and pointing direction.
@@ -183,7 +182,7 @@ def read_metadata(sdmfile, scan=0, bdfdir='/lustre/evla/wcbe/data/bunker'):
         for i in range(len(sdm['Scan'])):
             row  = sdm['Scan'][i]
             scannum = int(row['scanNumber'])
-            if (scan == 0) or (scannum == scan):
+            if scan in [0, scannum]:
                 rowkey = [k for k in row.keys if k.lower() == 'numsubscan'][0]   # need to find key but caps rule changes between ALMA/VLA
                 nsubs = int(row[rowkey])
                 scanintents = row['scanIntent']
@@ -237,7 +236,7 @@ def read_metadata(sdmfile, scan=0, bdfdir='/lustre/evla/wcbe/data/bunker'):
         logger.warn('Found only one scan with multiple subscans. Treating subscans as scans.')
         for row in sdm['Subscan']:
             scannum = int(row['subscanNumber'])
-            if (scan == 0) or (scannum == scan):
+            if scan in [0, scannum]:
                 startmjd = float(row['startTime'])*1.0E-9/86400.0           # start and end times in mjd ns
                 endmjd = float(row['endTime'])*1.0E-9/86400.0
                 scanintents = row['subscanIntent']
@@ -336,9 +335,8 @@ class BDFData (object):
         if os.path.exists(self.pklname):        # check for pkl with binary info
             logger.info('Found bdf pkl file %s. Loading...' % (self.pklname))
             try:
-                pkl = open(self.pklname,'rb')
-                (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols) = pickle.load(pkl)
-                pkl.close()
+                with open(self.pklname,'rb') as pkl:
+                    (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols) = pickle.load(pkl)
             except:
                 logger.warning('Something went wrong. Parsing bdf directly...')
                 self._parse()
@@ -425,10 +423,9 @@ class BDFData (object):
         if os.path.exists(os.path.split(self.pklname)[0]):   # check that directory exists
             if self.pklname and not os.path.exists(self.pklname):
                 logger.info('Writing bdf pkl info to %s...' % (self.pklname))
-                pkl = open(self.pklname,'wb')
+                with open(self.pklname,'wb') as pkl:
                 # Compute some miscellaneous parameters that we'll need.
-                pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
-                pkl.close()
+                    pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
 
         return self # convenience
 
