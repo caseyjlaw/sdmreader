@@ -16,7 +16,7 @@ Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in 
 """
 
 import numpy as np
-import os, glob, mmap, math, string, sdmpy, pickle
+import os, mmap, math, string, sdmpy, pickle
 import xml.etree.ElementTree as et    # sdmpy can do this part...
 from email.feedparser import FeedParser
 from email.message import Message
@@ -33,12 +33,11 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
     assert os.path.exists(sdmpath)
     scans, sources = read_metadata(sdmpath, scan)
     assert scans[scan]['bdfstr']
-    bdffiles = glob.glob(scans[scan]['bdfstr'])
+    bdffile = scans[scan]['bdfstr']
     try:
-        assert len(bdffiles) == 1
+        assert os.path.exists(bdffile)
     except:
-        logger.error('Did not find (exactly) one bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr']))
-    bdffile = bdffiles[0]
+        logger.error('Could not find bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr']))
 
     with open(bdffile, 'r') as fp:
         bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
@@ -204,18 +203,17 @@ def read_metadata(sdmfile, scan=0, bdfdir='/lustre/evla/wcbe/data/bunker'):
                     scandict[scannum]['nints'] = int(sdm['Main'][i]['numIntegration'])
         
                 try:
-                    bdfnumstr = sdm['Main'][i]['dataUID'].strip().split('/')[-1]
+                    bdfstr = sdm['Main'][i]['dataUID'].replace(':', '_').replace('/', '_')
                 except KeyError:
-                    bdfnumstr = sdm['Main'][i]['dataOid'].strip().split('/')[-1]
+                    bdfstr = sdm['Main'][i]['dataOid'].replace(':', '_').replace('/', '_')
 
-
-                if bdfnumstr == 'X1':  
-                    scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfnumstr='X1'
+                if bdfstr == 'X1':  
+                    scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfstr='X1'
                 else:
                     if location == 'archive':   # most use cases
-                        scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', '*' + str(bdfnumstr))
+                        scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', bdfstr)
                     elif location == 'cbe':  # bdfs stored remotly on CBE
-                        scandict[scannum]['bdfstr'] = os.path.join(bdfdir, '*' + str(bdfnumstr))
+                        scandict[scannum]['bdfstr'] = os.path.join(bdfdir, bdfstr)
 
                 if scandict[scannum]['source'] not in [sourcedict[source]['source'] for source in sourcedict.iterkeys()]:
                     for row in sdm['Field']:
