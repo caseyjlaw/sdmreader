@@ -30,9 +30,9 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
     Option to write pkl to store bdf info for faster parse next time.
     """
 
-    assert os.path.exists(sdmpath)
+    assert os.path.exists(sdmpath), 'sdmpath %s does not exist' % sdmpath
     scans, sources = read_metadata(sdmpath, scan)
-    assert scans[scan]['bdfstr']
+    assert scans[scan]['bdfstr'], 'bdfstr not defined for scan %d' % scan
     bdffile = scans[scan]['bdfstr']
     try:
         assert os.path.exists(bdffile)
@@ -82,14 +82,14 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
             logger.warning('No CASA libraries available. Cannot run calc_uvw.')
             exit(1)
 
-    assert os.path.exists(os.path.join(sdmfile, 'Station.xml'))
+    assert os.path.exists(os.path.join(sdmfile, 'Station.xml')), 'sdmfile %s has no Station.xml file. Not an SDM?' % sdmfile
 
     # get scan info
     scans, sources = read_metadata(sdmfile, scan)
 
     # default is to use scan info
     if (datetime == 0) and (len(radec) == 0):
-        assert scan != 0   # default scan value not valid
+        assert scan != 0, 'scan must be set when using datetime and radec'   # default scan value not valid
 
         logger.info('Calculating uvw for first integration of scan %d of source %s' % (scan, scans[scan]['source']))
         datetime = qa.time(qa.quantity(scans[scan]['startmjd'],'d'), form="ymd", prec=8)[0]
@@ -98,16 +98,16 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
 
     # secondary case is when datetime is also given
     elif (datetime != 0) and (len(radec) == 0):
-        assert scan != 0   # default scan value not valid
-        assert '/' in datetime   # datetime should be in be in yyyy/mm/dd/hh:mm:ss.sss
+        assert scan != 0, 'scan must be set when using datetime and radec'   # default scan value not valid
+        assert '/' in datetime, 'datetime must be in yyyy/mm/dd/hh:mm:ss.sss format'
 
         logger.info('Calculating uvw at %s for scan %d of source %s' % (datetime, scan, scans[scan]['source']))
         sourcenum = [kk for kk in sources.keys() if sources[kk]['source'] == scans[scan]['source']][0]
         direction = me.direction('J2000', str(np.degrees(sources[sourcenum]['ra']))+'deg', str(np.degrees(sources[sourcenum]['dec']))+'deg')
 
     else:
-        assert '/' in datetime   # datetime should be in be in yyyy/mm/dd/hh:mm:ss.sss
-        assert len(radec) == 2  # radec is (ra,dec) tuple in units of degrees
+        assert '/' in datetime, 'datetime must be in yyyy/mm/dd/hh:mm:ss.sss format'
+        assert len(radec) == 2, 'radec must be (ra,dec) tuple in units of degrees'
 
         logger.info('Calculating uvw at %s in direction %s' % (datetime, direction))
         ra = radec[0]; dec = radec[1]
