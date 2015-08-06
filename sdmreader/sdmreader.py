@@ -160,12 +160,7 @@ def read_metadata(sdmfile, scan=0, bdfdir=None):
 
     sdmfile = sdmfile.rstrip('/')
 
-    if (os.path.exists(sdmfile) == False):
-        logger.warn('Could not find the SDM file = %s' % sdmfile)
-        return([],[])
-    if (os.path.exists(os.path.join(sdmfile, 'Antenna.xml')) == False):
-        logger.warn('Could not find the Antenna.xml file.  Are you sure this is an SDM?')
-        return([],[])
+    assert os.path.exists(sdmfile), 'Could not find sdmfile %s.' % sdmfile
 
     # if ASDMBinary directory exists, this is normal archive product. else assume we are on CBE.
     if os.path.exists(os.path.join(sdmfile, 'ASDMBinary')):
