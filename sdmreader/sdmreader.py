@@ -150,13 +150,15 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
 
     return u, v, w
 
-def read_metadata(sdmfile, scan=0, bdfdir='/lustre/evla/wcbe/data/bunker'):
+def read_metadata(sdmfile, scan=0, bdfdir=None):
     """ Parses XML files to get scan and source information.
     Returns tuple of dicts (scan, source).
     Optional arg scan can be used to speed up parsing for single scan.
     bdfstr in scan dict helps find BDFs with read_bdf (with special behavior for prearchive data.
     bdfdir is optional location to look for bdfs, if using pre-archive SDM.
     """
+
+    if not bdfdir: bdfdir = '/lustre/evla/wcbe/data/bunker'
 
     sdmfile = sdmfile.rstrip('/')
 
