@@ -34,10 +34,8 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
     scans, sources = read_metadata(sdmpath, scan)
     assert scans[scan]['bdfstr'], 'bdfstr not defined for scan %d' % scan
     bdffile = scans[scan]['bdfstr']
-    try:
-        assert os.path.exists(bdffile)
-    except:
-        logger.error('Could not find bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr']))
+
+    assert os.path.exists(bdffile), 'Could not find bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr'])
 
     with open(bdffile, 'r') as fp:
         bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
