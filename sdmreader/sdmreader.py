@@ -16,12 +16,11 @@ Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in 
 """
 
 import numpy as np
-import os, mmap, math, string, sdmpy, pickle
+import os, mmap, math, string, sdmpy, pickle, logging
 import xml.etree.ElementTree as et    # sdmpy can do this part...
 from email.feedparser import FeedParser
 from email.message import Message
-import logging
-logger = logging.getLogger('rtpipe.parsesdm.sdmreader')
+logger = logging.getLogger(__name__)
 
 def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
     """ Reads given range of integrations from sdm of given scan.
