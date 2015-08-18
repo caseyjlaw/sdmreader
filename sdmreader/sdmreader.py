@@ -202,7 +202,7 @@ def read_metadata(sdmfile, scan=0, bdfdir=None):
                 except KeyError:
                     bdfstr = sdm['Main'][i]['dataOid'].replace(':', '_').replace('/', '_')
 
-                if bdfstr == 'X1':  
+                if 'X1' in bdfstr: 
                     scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfstr='X1'
                 else:
                     if location == 'archive':   # most use cases
