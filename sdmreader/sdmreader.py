@@ -20,6 +20,7 @@ import os, mmap, math, string, sdmpy, pickle, logging
 import xml.etree.ElementTree as et    # sdmpy can do this part...
 from email.feedparser import FeedParser
 from email.message import Message
+
 logger = logging.getLogger(__name__)
 
 def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
@@ -37,13 +38,15 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
     assert os.path.exists(bdffile), 'Could not find bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr'])
 
     with open(bdffile, 'r') as fp:
-        bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
-        if not os.path.exists(bdfpkldir) and writebdfpkl:
-            try:
+        # define bdfpkldir
+        if writebdfpkl:
+            bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
+            if not os.path.exists(bdfpkldir):
                 os.makedirs(bdfpkldir)
-            except OSError:
-                logger.warn('Directory already exists. Continuing...')
-        bdf = BDFData(fp, pkldir=bdfpkldir).parse()
+        else:
+            bdfpkldir = ''
+
+        bdf = BDFData(fp, bdfpkldir=bdfpkldir).parse()
         if readints == 0:
             readints = bdf.n_integrations - nskip
 
@@ -312,12 +315,12 @@ nanttag = 'numAntenna'
 basebandtag = 'baseband'
 
 class BDFData (object):
-    def __init__ (self, fp, pkldir=''):
+    def __init__ (self, fp, bdfpkldir=''):
         """fp is an open, seekable filestream."""
         self.fp = fp
         self.mmdata = mmap.mmap (fp.fileno (), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-        if pkldir:
-            self.pklname = os.path.join(pkldir, os.path.split(self.fp.name)[1] + '.pkl')
+        if bdfpkldir:
+            self.pklname = os.path.join(bdfpkldir, os.path.basename(self.fp.name) + '.pkl')
         else:
             self.pklname = ''
 
@@ -412,12 +415,11 @@ class BDFData (object):
         self.n_pols = len(self.crosspols)
 
         # if bdf info pkl not present, write it
-        if os.path.exists(os.path.split(self.pklname)[0]):   # check that directory exists
-            if self.pklname and not os.path.exists(self.pklname):
-                logger.info('Writing bdf pkl info to %s...' % (self.pklname))
-                with open(self.pklname,'wb') as pkl:
+        if os.path.exists(os.path.dirname(self.pklname)) and self.pklname and (not os.path.exists(self.pklname)):
+            logger.info('Writing bdf pkl info to %s...' % (self.pklname))
+            with open(self.pklname,'wb') as pkl:
                 # Compute some miscellaneous parameters that we'll need.
-                    pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
+                pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
 
         return self # convenience
 
