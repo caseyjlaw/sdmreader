@@ -336,6 +336,7 @@ class BDFData (object):
                 logger.warning('Something went wrong. Parsing bdf directly...')
                 self._parse()
         else:
+            logger.info('Count not find bdf pkl file %s.' % (self.pklname))
             self._parse()
 
         return self
