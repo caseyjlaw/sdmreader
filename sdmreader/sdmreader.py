@@ -337,7 +337,7 @@ class BDFData (object):
                 self._parse()
         else:
             if self.pklname:
-                logger.info('Count not find bdf pkl file %s.' % (self.pklname))
+                logger.info('Could not find bdf pkl file %s.' % (self.pklname))
             self._parse()
 
         return self
