@@ -160,6 +160,7 @@ def read_metadata(sdmfile, scan=0, bdfdir=None):
     """
 
     assert os.path.exists(sdmfile), 'Could not find sdmfile %s.' % sdmfile
+    if bdfdir: logger.info('Looking for bdfs in %s' % bdfdir)
     sdmfile = sdmfile.rstrip('/')
     scandict = {}; sourcedict = {}
 
