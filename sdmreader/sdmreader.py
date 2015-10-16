@@ -154,27 +154,17 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
 def read_metadata(sdmfile, scan=0, bdfdir=None):
     """ Parses XML files to get scan and source information.
     Returns tuple of dicts (scan, source).
-    Optional arg scan can be used to speed up parsing for single scan.
+    bdfdir is optional location to look for bdfs, will try that first, then ASDMBinary subdirectory.
     bdfstr in scan dict helps find BDFs with read_bdf (with special behavior for prearchive data.
-    bdfdir is optional location to look for bdfs, if using pre-archive SDM.
+    Optional arg scan can be used to speed up parsing for single scan.
     """
 
-    if not bdfdir: bdfdir = '/lustre/evla/wcbe/data/bunker'
-
-    sdmfile = sdmfile.rstrip('/')
-
     assert os.path.exists(sdmfile), 'Could not find sdmfile %s.' % sdmfile
-
-    # if ASDMBinary directory exists, this is normal archive product. else assume we are on CBE.
-    if os.path.exists(os.path.join(sdmfile, 'ASDMBinary')):
-        location = 'archive'
-    else:
-        location = 'cbe'
-
-    sdm = sdmpy.SDM(sdmfile)
+    sdmfile = sdmfile.rstrip('/')
+    scandict = {}; sourcedict = {}
 
     # read Scan.xml into dictionary also and make a list
-    scandict = {}; sourcedict = {}
+    sdm = sdmpy.SDM(sdmfile)
     if len(sdm['Scan']) > 1:    # workaround: conversion from MS to SDM tends to make scans into subscans of one large scan
         for i in range(len(sdm['Scan'])):
             row  = sdm['Scan'][i]
@@ -205,13 +195,15 @@ def read_metadata(sdmfile, scan=0, bdfdir=None):
                 except KeyError:
                     bdfstr = sdm['Main'][i]['dataOid'].replace(':', '_').replace('/', '_')
 
-                if 'X1' in bdfstr: 
-                    scandict[scannum]['bdfstr'] = None    # missing BDFs (bad or removed) have bdfstr='X1'
-                else:
-                    if location == 'archive':   # most use cases
-                        scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', bdfstr)
-                    elif location == 'cbe':  # bdfs stored remotly on CBE
-                        scandict[scannum]['bdfstr'] = os.path.join(bdfdir, bdfstr)
+                if bdfdir:  # first look here
+                    scandict[scannum]['bdfstr'] = os.path.join(bdfdir, bdfstr)
+                else:  # if bdfdir not defined, try standard (post-archive) SDM location
+                    scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', bdfstr)
+
+                # clear reference to nonexistent BDFs (either bad or not in standard locations)
+                if (not os.path.exists(scandict[scannum]['bdfstr'])) or ('X1' in bdfstr):
+                    scandict[scannum]['bdfstr'] = None
+                    logger.debug('No bdf found scan %d of %s' % (scannum, sdmfile) )
 
                 if scandict[scannum]['source'] not in [sourcedict[source]['source'] for source in sourcedict.iterkeys()]:
                     for row in sdm['Field']:
