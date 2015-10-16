@@ -24,7 +24,7 @@ from email.message import Message
 
 logger = logging.getLogger(__name__)
 
-def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
+def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False, bdfdir=None):
     """ Reads given range of integrations from sdm of given scan.
     Uses BDFData object to read.
     readints=0 will read all of bdf (skipping nskip).
@@ -32,7 +32,7 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False):
     """
 
     assert os.path.exists(sdmpath), 'sdmpath %s does not exist' % sdmpath
-    scans, sources = read_metadata(sdmpath, scan)
+    scans, sources = read_metadata(sdmpath, scan, bdfdir=bdfdir)
     assert scans[scan]['bdfstr'], 'bdfstr not defined for scan %d' % scan
     bdffile = scans[scan]['bdfstr']
 
