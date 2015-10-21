@@ -17,7 +17,8 @@ Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in 
 
 import numpy as np
 import os, mmap, math, string, sdmpy, logging
-import cPickle as pickle
+#import cPickle as pickle
+import pickle
 import xml.etree.ElementTree as et    # sdmpy can do this part...
 from email.feedparser import FeedParser
 from email.message import Message
@@ -415,7 +416,7 @@ class BDFData (object):
             logger.info('Writing bdf pkl info to %s...' % (self.pklname))
             with open(self.pklname,'wb') as pkl:
                 # Compute some miscellaneous parameters that we'll need.
-                pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl, protocol=-1)
+                pickle.dump( (self.mimemsg, self.headxml, self.sizeinfo, self.binarychunks, self.n_integrations, self.n_antennas, self.n_baselines, self.n_basebands, self.n_spws, self.n_channels, self.crosspols), pkl)
 
         return self # convenience
 
