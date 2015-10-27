@@ -20,11 +20,55 @@ import os, mmap, math, string, sdmpy, logging
 #import cPickle as pickle
 import pickle
 import xml.etree.ElementTree as et    # sdmpy can do this part...
-import simpleflock
 from email.feedparser import FeedParser
 from email.message import Message
+import time, fcntl, errno
 
 logger = logging.getLogger(__name__)
+
+
+class SimpleFlock:
+   """Provides the simplest possible interface to flock-based file locking. Intended for use with the `with` syntax. It will create/truncate/delete the lock file as necessary."""
+
+   def __init__(self, path, timeout = None):
+       self._path = path
+       self._timeout = timeout
+       self._fd = None
+
+   def __enter__(self):
+       self._fd = os.open(self._path, os.O_CREAT)
+       start_lock_search = time.time()
+       while True:
+           try:
+               fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+               logging.info("File lock acquired!")
+               return
+           except IOError, ex:
+               if ex.errno != errno.EAGAIN: # Resource temporarily unavailable
+                   raise
+               elif self._timeout is not None and time.time() > (start_lock_search + self._timeout):
+                   # Exceeded the user-specified timeout.
+                   logging.info("Timeout occurred waiting for file lock. Proceeding to read file without file lock.")
+                   #raise
+         
+           # TODO It would be nice to avoid an arbitrary sleep here, but spinning
+           # without a delay is also undesirable.
+           time.sleep(0.1)
+
+   def __exit__(self, *args):
+      fcntl.flock(self._fd, fcntl.LOCK_UN)
+      os.close(self._fd)
+      self._fd = None
+
+      # Try to remove the lock file, but don't try too hard because it is
+      # unnecessary. This is mostly to help the user see whether a lock
+      # exists by examining the filesystem.
+      try:
+         os.unlink(self._path)
+      except:
+         pass
+
+
 
 def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False, bdfdir=None):
     """ Reads given range of integrations from sdm of given scan.
@@ -41,8 +85,7 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False, bdfdir=None)
     assert os.path.exists(bdffile), 'Could not find bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr'])
 
     logger.info("Waiting to acquire lock on SDM %s" % sdmpath)
-    with simpleflock.SimpleFlock(d['filename'],timeout=14400): # Times out after 4 hours of waiting.
-        logger.info("Lock acquired on SDM %s" % sdmpath)
+    with SimpleFlock(d['filename'],timeout=7200): # Times out after 4 hours of waiting.
         with open(bdffile, 'r') as fp:
             # define bdfpkldir
             if writebdfpkl:
