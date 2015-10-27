@@ -20,6 +20,7 @@ import os, mmap, math, string, sdmpy, logging
 #import cPickle as pickle
 import pickle
 import xml.etree.ElementTree as et    # sdmpy can do this part...
+import simpleflock
 from email.feedparser import FeedParser
 from email.message import Message
 
@@ -39,23 +40,26 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False, bdfdir=None)
 
     assert os.path.exists(bdffile), 'Could not find bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr'])
 
-    with open(bdffile, 'r') as fp:
-        # define bdfpkldir
-        if writebdfpkl:
-            bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
-            if not os.path.exists(bdfpkldir):
-                os.makedirs(bdfpkldir)
-        else:
-            bdfpkldir = ''
-
-        bdf = BDFData(fp, bdfpkldir=bdfpkldir).parse()
-        if readints == 0:
-            readints = bdf.n_integrations - nskip
-
-        logger.info('Reading %d ints starting at int %d' % (readints, nskip))
-        data = np.empty( (readints, bdf.n_baselines, bdf.n_channels, len(bdf.crosspols)), dtype='complex64', order='C')
-        for i in xrange(readints):
-            data[i] = bdf.get_data ('crossData.bin', i+nskip)
+    logger.info("Waiting to acquire lock on SDM %s" % sdmpath)
+    with simpleflock.SimpleFlock(d['filename'],timeout=14400): # Times out after 4 hours of waiting.
+        logger.info("Lock acquired on SDM %s" % sdmpath)
+        with open(bdffile, 'r') as fp:
+            # define bdfpkldir
+            if writebdfpkl:
+                bdfpkldir = os.path.join(sdmpath, 'bdfpkls')   # make place for bdfpkls, if needed
+                if not os.path.exists(bdfpkldir):
+                    os.makedirs(bdfpkldir)
+            else:
+                bdfpkldir = ''
+        
+            bdf = BDFData(fp, bdfpkldir=bdfpkldir).parse()
+            if readints == 0:
+                readints = bdf.n_integrations - nskip
+        
+            logger.info('Reading %d ints starting at int %d' % (readints, nskip))
+            data = np.empty( (readints, bdf.n_baselines, bdf.n_channels, len(bdf.crosspols)), dtype='complex64', order='C')
+            for i in xrange(readints):
+                data[i] = bdf.get_data ('crossData.bin', i+nskip)
 #            flag[i] = bdf.get_data ('flags.bin', i+nskip)  # need to get auto+cross parsing right to implement this
 
     return data
