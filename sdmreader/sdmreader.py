@@ -41,7 +41,7 @@ def read_bdf(sdmpath, scan, nskip=0, readints=0, writebdfpkl=False, bdfdir=None)
     assert os.path.exists(bdffile), 'Could not find bdf for scan %d and bdfstr %s.' % (scan, scans[scan]['bdfstr'])
 
     logger.info("Waiting to acquire lock on SDM %s" % sdmpath)
-    with simpleflock.SimpleFlock(d['filename'],timeout=14400): # Times out after 4 hours of waiting.
+    with simpleflock.SimpleFlock(os.path.join(d['filename'],'Main.xml'),timeout=14400): # Times out after 4 hours of waiting.
         logger.info("Lock acquired on SDM %s" % sdmpath)
         with open(bdffile, 'r') as fp:
             # define bdfpkldir
