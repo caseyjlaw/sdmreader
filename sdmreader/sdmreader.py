@@ -438,7 +438,7 @@ class BDFData (object):
             if idents[2] == '1' and idents[3] == '1' and 'cross' in idents[-1]:
                 headsize = self.binarychunks[ident]
                 break
-        offset = headsize + (integnum + 1) * size
+        offset = headsize + integnum * size
 
 #            raise ValueError ('can\'t find integration #%d of kind %s in BDF' % (integnum, datakind))
 
