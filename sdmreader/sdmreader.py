@@ -433,15 +433,14 @@ class BDFData (object):
             raise ValueError ('unrecognized data kind "%s"' % datakind)
 
         dtype = _datatypes[datakind]
-        key = '/%d/%s' % (integnum + 1, datakind) # numbers are 1-based here
-
-        for ident, offset in self.binarychunks.iteritems ():
-            if ident.endswith (key):
+        for ident in self.binarychunks.iterkeys():
+            idents = ident.split('/')
+            if idents[2] == '1' and idents[3] == '1' and 'cross' in idents[-1]:
+                headsize = self.binarychunks[ident]
                 break
-        else:
-            # Gets executed if we don't break out of the loop.
-            raise ValueError ('can\'t find integration #%d of kind %s in BDF'
-                              % (integnum, datakind))
+        offset = headsize + (integnum + 1) * size
+
+#            raise ValueError ('can\'t find integration #%d of kind %s in BDF' % (integnum, datakind))
 
         dslice = self.mmdata[offset:offset+size]
         data = np.fromstring (dslice, dtype=dtype)
