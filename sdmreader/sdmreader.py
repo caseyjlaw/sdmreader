@@ -335,15 +335,7 @@ class BDFData (object):
                 logger.info('Could not find bdf pkl file %s.' % (self.pklname))
             self._parse()
 
-        # assume first cross blob starts after headxml and second is one int of bytes later
-        for k in self.binarychunks.iterkeys():
-            if int(k.split('/')[3]) == 1 and 'cross' in k.split('/')[-1]:
-                self.headsize = self.binarychunks[k]
-                break
-        for k in self.binarychunks.iterkeys():
-            if int(k.split('/')[3]) == 2 and 'cross' in k.split('/')[-1]:
-                self.intsize = self.binarychunks[k] - self.headsize
-                break
+        self.headsize, self.intsize = self.calc_intsize()
 
         return self
 
@@ -396,8 +388,11 @@ class BDFData (object):
         self.sizeinfo = sizeinfo
         self.binarychunks = binarychunks
 
+        headsize, intsize = self.calc_intsize()
+
         # Compute some miscellaneous parameters that we'll need.
-        self.n_integrations = len (self.mimemsg.get_payload ()) - 1
+#        self.n_integrations = len (self.mimemsg.get_payload ()) - 1
+        self.n_integrations = os.stat(self.fp.name).st_size/intsize
         self.n_antennas = int (headxml.find (tagpfx + nanttag).text)
         self.n_baselines = (self.n_antennas * (self.n_antennas - 1)) // 2
 
@@ -460,6 +455,22 @@ class BDFData (object):
                                   len (self.crosspols)))
 
         return data
+
+    def calc_intsize(self):
+        """ Calculates the size of an integration (cross + auto) in bytes
+        """
+
+        # assume first cross blob starts after headxml and second is one int of bytes later
+        for k in self.binarychunks.iterkeys():
+            if int(k.split('/')[3]) == 1 and 'cross' in k.split('/')[-1]:
+                headsize = self.binarychunks[k]
+                break
+        for k in self.binarychunks.iterkeys():
+            if int(k.split('/')[3]) == 2 and 'cross' in k.split('/')[-1]:
+                intsize = self.binarychunks[k] - headsize
+                break
+
+        return (headsize, intsize)
 
 
 tagprefixes = ['{http://Alma/XASDM/sdmbin}', '']
