@@ -335,6 +335,16 @@ class BDFData (object):
                 logger.info('Could not find bdf pkl file %s.' % (self.pklname))
             self._parse()
 
+        # assume first cross blob starts after headxml and second is one int of bytes later
+        for k in self.binarychunks.iterkeys():
+            if int(k.split('/')[3]) == 1 and 'cross' in k.split('/')[-1]:
+                self.headsize = self.binarychunks[k]
+                break
+        for k in self.binarychunks.iterkeys():
+            if int(k.split('/')[3]) == 2 and 'cross' in k.split('/')[-1]:
+                self.intsize = self.binarychunks[k] - self.headsize
+                break
+
         return self
 
     def _parse (self):
@@ -373,6 +383,10 @@ class BDFData (object):
                 sample = self.fp.read (16)
                 assert sample.startswith ('--MIME'), 'crap, unexpected chunk size in MIME parsing: %r' % sample
                 self.fp.seek (-16, 1) # go back
+
+            # check that two major kinds of data are read at least once
+            if any([k.split('/')[3] == '3' for k in binarychunks.iterkeys()]):
+                break
 
         if headxml is None:
             raise RuntimeError ('never found any binary data')
@@ -433,15 +447,7 @@ class BDFData (object):
             raise ValueError ('unrecognized data kind "%s"' % datakind)
 
         dtype = _datatypes[datakind]
-        for ident in self.binarychunks.iterkeys():
-            idents = ident.split('/')
-            if idents[2] == '1' and idents[3] == '1' and 'cross' in idents[-1]:
-                headsize = self.binarychunks[ident]
-                break
-        offset = headsize + integnum * size  # ** size should actually be sum of all blobs, not just the one of iterest
-
-#            raise ValueError ('can\'t find integration #%d of kind %s in BDF' % (integnum, datakind))
-
+        offset = self.headsize + integnum * self.intsize
         dslice = self.mmdata[offset:offset+size]
         data = np.fromstring (dslice, dtype=dtype)
 
