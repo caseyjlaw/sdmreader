@@ -161,7 +161,13 @@ def read_metadata(sdmfile, scan=0, bdfdir=None):
     """
 
     assert os.path.exists(sdmfile), 'Could not find sdmfile %s.' % sdmfile
-    if bdfdir: logger.info('Looking for bdfs in %s' % bdfdir)
+    if bdfdir:
+        if not os.path.exists(bdfdir):
+            logger.info('bdfdir %s not found' % bdfdir)
+            bdfdir = os.path.join(sdmfile, 'ASDMBinary')
+    else:
+        bdfdir = os.path.join(sdmfile, 'ASDMBinary')
+    logger.info('Looking for bdfs in %s' % bdfdir)
     sdmfile = sdmfile.rstrip('/')
     scandict = {}; sourcedict = {}
 
@@ -197,10 +203,7 @@ def read_metadata(sdmfile, scan=0, bdfdir=None):
                 except KeyError:
                     bdfstr = sdm['Main'][i]['dataOid'].replace(':', '_').replace('/', '_')
 
-                if bdfdir:  # first look here
-                    scandict[scannum]['bdfstr'] = os.path.join(bdfdir, bdfstr)
-                else:  # if bdfdir not defined, try standard (post-archive) SDM location
-                    scandict[scannum]['bdfstr'] = os.path.join(sdmfile, 'ASDMBinary', bdfstr)
+                scandict[scannum]['bdfstr'] = os.path.join(bdfdir, bdfstr)
 
                 # clear reference to nonexistent BDFs (either bad or not in standard locations)
                 if (not os.path.exists(scandict[scannum]['bdfstr'])) or ('X1' in bdfstr):
