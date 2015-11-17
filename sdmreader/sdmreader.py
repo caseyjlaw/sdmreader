@@ -349,6 +349,7 @@ class BDFData (object):
         feedparser = FeedParser (Message)
         binarychunks = {}
         sizeinfo = None
+        headxml = None
         self.fp.seek (0, 0)
 
         while True:
