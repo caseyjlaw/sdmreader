@@ -17,8 +17,7 @@ Order of uvw and axis=1 of data array Pythonically would be [i*nants+j for j in 
 
 import numpy as np
 import os, mmap, math, string, sdmpy, logging
-#import cPickle as pickle
-import pickle
+import cPickle as pickle
 import xml.etree.ElementTree as et    # sdmpy can do this part...
 from email.feedparser import FeedParser
 from email.message import Message
@@ -70,19 +69,13 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
 
     # set up CASA tools
     try:
-        # try casapy-free casa
         import casautil
-        me = casautil.tools.measures()
-        qa = casautil.tools.quanta()
-        logger.debug('Accessing CASA libraries with casautil.')
     except ImportError:
-        try:
-            from casa import quanta as qa
-            from casa import measures as me
-            logger.debug('Accessing CASA libraries with casapy.')
-        except ImportError:
-            logger.warning('No CASA libraries available. Cannot run calc_uvw.')
-            exit(1)
+        import pwkit.environments.casa.util as casautil
+
+    me = casautil.tools.measures()
+    qa = casautil.tools.quanta()
+    logger.debug('Accessing CASA libraries with casautil.')
 
     assert os.path.exists(os.path.join(sdmfile, 'Station.xml')), 'sdmfile %s has no Station.xml file. Not an SDM?' % sdmfile
 
