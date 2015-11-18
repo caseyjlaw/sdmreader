@@ -71,7 +71,11 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
     try:
         import casautil
     except ImportError:
-        import pwkit.environments.casa.util as casautil
+        try:
+            import pwkit.environments.casa.util as casautil
+        except ImportError:
+            logger.info('Cannot find pwkit/casautil. No calc_uvw possible.')
+            return
 
     me = casautil.tools.measures()
     qa = casautil.tools.quanta()
