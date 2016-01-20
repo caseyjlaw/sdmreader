@@ -157,6 +157,7 @@ def read_metadata(sdmfile, scan=0, bdfdir=None):
     Optional arg scan can be used to speed up parsing for single scan.
     """
 
+    sdmfile = sdmfile.rstrip('/')
     assert os.path.exists(sdmfile), 'Could not find sdmfile %s.' % sdmfile
     if bdfdir:
         if not os.path.exists(bdfdir):
