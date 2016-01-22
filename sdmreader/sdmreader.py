@@ -124,14 +124,9 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
 
     # read antpos
     if scan != 0:
-        configid = [row.configDescriptionId for row in sdm['Main']
-                    if scan == int(row.scanNumber)][0]
-        antidlist = [row.antennaId for row in sdm['ConfigDescription']
-                  if configid == row.configDescriptionId][0].split(' ')
-        stationidlist = [ant.stationId
-                     for antid in antidlist
-                     for ant in sdm['Antenna']
-                     if antid == row.antennaId]
+        configid = [row.configDescriptionId for row in sdm['Main'] if scan == int(row.scanNumber)][0]
+        antidlist = [row.antennaId for row in sdm['ConfigDescription'] if configid == row.configDescriptionId][0].split(' ')[2:]
+        stationidlist = [ant.stationId for antid in antidlist for ant in sdm['Antenna'] if antid == ant.antennaId]
     else:
         stationidlist = [ant.stationId for ant in sdm['Antenna']]
 
