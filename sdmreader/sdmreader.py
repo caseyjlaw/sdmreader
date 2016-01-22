@@ -109,6 +109,7 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
         assert len(radec) == 2, 'radec must be (ra,dec) tuple in units of degrees'
 
         logger.info('Calculating uvw at %s in direction %s' % (datetime, direction))
+        logger.info('This mode assumes all antennas used.')
         ra = radec[0]; dec = radec[1]
         direction = me.direction('J2000', str(ra)+'deg', str(dec)+'deg')
 
@@ -122,9 +123,21 @@ def calc_uvw(sdmfile, scan=0, datetime=0, radec=()):
     me.doframe(direction)
 
     # read antpos
-    positions = [ant.position.strip().split(' ') for ant in sdm['Station'] if 'ANTENNA' in ant.type]
-#    root = et.parse(os.path.join(sdmfile, 'Station.xml')).getroot()
-#    positions = [rr.find('position').text.split(' ') for rr in root.iter('row') if 'ANTENNA' in rr.find('type').text]
+    if scan != 0:
+        configid = [row.configDescriptionId for row in sdm['Main']
+                    if scan == int(row.scanNumber)][0]
+        antidlist = [row.antennaId for row in sdm['ConfigDescription']
+                  if configid == row.configDescriptionId][0].split(' ')
+        stationidlist = [ant.stationId
+                     for antid in antidlist
+                     for ant in sdm['Antenna']
+                     if antid == row.antennaId]
+    else:
+        stationidlist = [ant.stationId for ant in sdm['Antenna']]
+
+    positions = [station.position.strip().split(' ')
+                 for station in sdm['Station'] 
+                 if station.stationId in stationidlist]
     x = [float(positions[i][2]) for i in range(len(positions))]
     y = [float(positions[i][3]) for i in range(len(positions))]
     z = [float(positions[i][4]) for i in range(len(positions))]
