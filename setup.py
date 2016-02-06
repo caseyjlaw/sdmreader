@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='sdmreader',
-      version='1.21',
+      version='1.22',
       description='Read/parse NRAO Science Data Model files',
       author='Casey Law',
       author_email='caseyjlaw@gmail.com',
